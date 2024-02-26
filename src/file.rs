@@ -1,14 +1,13 @@
-use std::collections::HashMap;
 use std::path::{PathBuf, Path};
 use std::io::ErrorKind;
 use std::default::Default;
 use std::io::{BufWriter, BufReader};
-use std::fmt::{Display, Formatter};
 
 use serde::{Serialize, Deserialize};
-use url::Url;
 use anyhow::Context;
 use clap::Args;
+
+pub mod tags;
 
 #[derive(Debug, Args)]
 pub struct FileList {
@@ -18,159 +17,76 @@ pub struct FileList {
 }
 
 impl FileList {
-    pub fn get_files(&self) -> anyhow::Result<Vec<File>> {
-        let mut files = Vec::with_capacity(self.files.len());
-        let cwd = std::env::current_dir()?;
+    pub fn get_files(&self) -> anyhow::Result<FileListIter<'_>> {
+        let cwd = std::env::current_dir()
+            .context("failed to get current working directory")?;
 
-        for path in &self.files {
-            let full_path = if !path.is_absolute() {
-                let joined = cwd.join(&path);
-
-                match joined.canonicalize() {
-                    Ok(canon) => canon,
-                    Err(_err) => joined
-                }
-            } else {
-                path.clone()
-            };
-
-            let mut basename = full_path.file_name()
-                .with_context(|| format!("given file has no basename: \"{}\"", full_path.display()))?
-                .to_os_string();
-            basename.push(".json");
-
-            let mut meta_file = full_path.parent()
-                .with_context(|| format!("given file has no parent directory: \"{}\"", full_path.display()))?
-                .join(".file-meta");
-            meta_file.push(basename);
-
-            files.push(File::load(path.clone(), meta_file).context("failed to load data for file")?);
-        }
-
-        Ok(files)
+        Ok(FileListIter {
+            list_iter: self.files.iter(),
+            cwd
+        })
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum TagValue {
-    Simple(String),
-    Number(i64),
-    Url(url::Url),
+#[derive(Debug)]
+pub struct FileListIter<'a> {
+    list_iter: std::slice::Iter<'a, PathBuf>,
+    cwd: PathBuf,
 }
 
-impl TagValue {
-    fn new(value: String) -> Self {
-        TagValue::Simple(value)
-    }
+impl<'a> FileListIter<'a> {
+    fn get_file(&self, path: PathBuf) -> anyhow::Result<File> {
+        let full_path = if !path.is_absolute() {
+            let joined = self.cwd.join(&path);
 
-    fn parse_url(value: &str) -> Result<Self, url::ParseError> {
-        Ok(TagValue::Url(Url::parse(value)?))
-    }
-
-    fn parse_num(value: &str) -> anyhow::Result<Self, std::num::ParseIntError> {
-        Ok(TagValue::Number(value.parse()?))
-    }
-}
-
-impl Display for TagValue {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            TagValue::Simple(v) => write!(f, "{}", v),
-            TagValue::Number(v) => write!(f, "{}", v),
-            TagValue::Url(v) => write!(f, "{}", v),
-        }
-    }
-}
-
-impl From<&str> for TagValue {
-    fn from(value: &str) -> Self {
-        if let Ok(i64_value) = value.parse() {
-            TagValue::Number(i64_value)
-        } else if let Ok(url) = value.parse() {
-            TagValue::Url(url)
-        } else {
-            TagValue::Simple(value.to_owned())
-        }
-    }
-}
-
-pub type Tag = (String, Option<TagValue>);
-
-pub fn parse_tag(arg: &str) -> Result<Tag, String> {
-    if let Some((name, value)) = arg.split_once(':') {
-        if name.is_empty() {
-            return Err(format!("tag name is empty: \"{}\"", arg));
-        }
-
-        if value.is_empty() {
-            Ok((name.into(), None))
-        } else {
-            Ok((name.into(), Some(value.into())))
-        }
-    } else {
-        if arg.is_empty() {
-            return Err(format!("tag is empty: \"{}\"", arg));
-        }
-
-        Ok((arg.into(), None))
-    }
-}
-
-pub fn parse_url_tag(arg: &str) -> Result<Tag, String> {
-    if let Some((name, value)) = arg.split_once(':') {
-        if name.is_empty() {
-            return Err(format!("tag name is empty: \"{}\"", arg));
-        }
-
-        if value.is_empty() {
-            return Err(format!("missing url data: \"{}\"", arg));
-        }
-
-        match TagValue::parse_url(value) {
-            Ok(url) => Ok((name.into(), Some(url))),
-            Err(err) => {
-                Err(format!("invalid url provided: \"{}\" {}", value, err))
+            match joined.canonicalize() {
+                Ok(canon) => canon,
+                Err(_err) => joined
             }
-        }
-    } else {
-        Err(format!("missing tag value: \"{}\"", arg))
+        } else {
+            path.clone()
+        };
+
+        let mut basename = full_path.file_name()
+            .with_context(|| format!("given file has no basename: \"{}\"", full_path.display()))?
+            .to_os_string();
+        basename.push(".json");
+
+        let mut meta_file = full_path.parent()
+            .with_context(|| format!("given file has no parent directory: \"{}\"", full_path.display()))?
+            .join(".file-meta");
+        meta_file.push(basename);
+
+        Ok(File::load(
+            path,
+            meta_file
+        ).context("failed to load data for file")?)
     }
 }
 
-pub fn parse_num_tag(arg: &str) -> Result<Tag, String> {
-    if let Some((name, value)) = arg.split_once(':') {
-        if name.is_empty() {
-            return Err(format!("tag name is empty: \"{}\"", arg));
-        }
+impl<'a> std::iter::Iterator for FileListIter<'a> {
+    type Item = anyhow::Result<File>;
 
-        if value.is_empty() {
-            return Err(format!("missing num data: \"{}\"", arg));
-        }
+    fn next(&mut self) -> Option<Self::Item> {
+        let Some(path) = self.list_iter.next() else {
+            return None;
+        };
 
-        match TagValue::parse_num(value) {
-            Ok(url) => Ok((name.into(), Some(url))),
-            Err(err) => {
-                Err(format!("invalid num provided: \"{}\" {}", value, err))
-            }
-        }
-    } else {
-        Err(format!("missing tag value: \"{}\"", arg))
+        Some(self.get_file(path.clone()))
     }
 }
-
-pub type TagsMap = HashMap<String, Option<TagValue>>;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct FileData {
     #[serde(default)]
-    pub tags: TagsMap,
+    pub tags: tags::TagsMap,
     pub comment: Option<String>,
 }
 
 impl Default for FileData {
     fn default() -> Self {
         FileData {
-            tags: HashMap::new(),
+            tags: tags::TagsMap::new(),
             comment: None
         }
     }

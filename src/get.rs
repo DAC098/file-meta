@@ -19,10 +19,17 @@ pub struct GetArgs {
 }
 
 pub fn get_data(args: GetArgs) -> anyhow::Result<()> {
-    let files = args.file_list.get_files()?;
-    let files_len = files.len();
+    let files_len = args.file_list.files.len();
 
-    for file in files {
+    for file_result in args.file_list.get_files()? {
+        let file = match file_result {
+            Ok(f) => f,
+            Err(err) => {
+                println!("{}", err);
+                continue;
+            }
+        };
+
         if files_len > 1 {
             println!("{}", file.ref_path().display());
         }
@@ -41,7 +48,7 @@ pub fn get_data(args: GetArgs) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn print_tags(tags: &file::TagsMap) {
+fn print_tags(tags: &file::tags::TagsMap) {
     let mut max_len = 0usize;
     let mut no_value = BinaryHeap::new();
     let mut with_value = BinaryHeap::new();

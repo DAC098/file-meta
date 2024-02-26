@@ -13,9 +13,15 @@ pub struct OpenArgs {
 }
 
 pub fn open_tag(args: OpenArgs) -> anyhow::Result<()> {
-    let files = args.file_list.get_files()?;
+    for file_result in args.file_list.get_files()? {
+        let file = match file_result {
+            Ok(f) => f,
+            Err(err) => {
+                println!("{}", err);
+                continue;
+            }
+        };
 
-    for file in files {
         if let Some(maybe_value) = file.data.tags.get(&args.tag) {
             let Some(value) = &maybe_value else {
                 println!("{} {} has no value", file.ref_path().display(), args.tag);
@@ -23,7 +29,7 @@ pub fn open_tag(args: OpenArgs) -> anyhow::Result<()> {
             };
 
             let url = match value {
-                file::TagValue::Url(url) => url.to_string(),
+                file::tags::TagValue::Url(url) => url.to_string(),
                 _ => {
                     println!("{} {} is not a valid url", file.ref_path().display(), args.tag);
                     continue;

@@ -1,7 +1,4 @@
-use std::path::PathBuf;
-
-use clap::{Parser, Args, Subcommand};
-use anyhow::Context;
+use clap::{Parser, Subcommand};
 
 mod file;
 mod get;
