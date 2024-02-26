@@ -1,0 +1,25 @@
+[package]
+name = "file-meta"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+serde_json = "1"
+anyhow = "1"
+
+[dependencies.clap]
+version = "4"
+features = ["derive"]
+
+[dependencies.opener]
+version = "0.6"
+
+[dependencies.serde]
+version = "1"
+features = ["derive"]
+
+[dependencies.url]
+version = "2"
+features = ["serde"]
