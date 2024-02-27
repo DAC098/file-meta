@@ -36,16 +36,14 @@ pub struct FileListIter<'a> {
 
 impl<'a> FileListIter<'a> {
     fn get_file(&self, path: PathBuf) -> anyhow::Result<File> {
-        let full_path = if !path.is_absolute() {
-            let joined = self.cwd.join(&path);
-
-            match joined.canonicalize() {
-                Ok(canon) => canon,
-                Err(_err) => joined
-            }
+        let modded = if !path.is_absolute() {
+            self.cwd.join(&path)
         } else {
             path.clone()
         };
+
+        let full_path = modded.canonicalize()
+            .with_context(|| format!("failed to canonicalize path: {}", modded.display()))?;
 
         let mut basename = full_path.file_name()
             .with_context(|| format!("given file has no basename: \"{}\"", full_path.display()))?
