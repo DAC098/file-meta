@@ -1,22 +1,45 @@
 use std::collections::{HashMap, BTreeMap};
 use std::path::{Path, PathBuf};
-use std::io::{ErrorKind, BufWriter, BufReader};
-use std::fs::Metadata;
+use std::io::{BufWriter, BufReader};
+use std::default::Default;
+use std::ffi::OsStr;
 
 use serde::{Serialize, Deserialize};
 use anyhow::Context;
+use clap::ValueEnum;
 
-use crate::file::tags;
+use crate::fs::get_metadata;
+use crate::tags;
 
 type DbPath = Box<Path>;
 type FilePath = Box<Path>;
 
-#[derive(Debug, Clone)]
+const DB_PRETTY_JSON_NAME: &str = "db.pretty.json";
+const DB_JSON_NAME: &str = "db.json";
+const DB_BINARY_NAME: &str = "db.bincode";
+
+#[derive(Debug, Clone, ValueEnum)]
 pub enum FileType {
     JsonPretty,
     Json,
-    Binary
+    Binary,
 }
+
+impl FileType {
+    pub fn get_file_name_os(&self) -> &OsStr {
+        match self {
+            FileType::JsonPretty => OsStr::new(DB_PRETTY_JSON_NAME),
+            FileType::Json => OsStr::new(DB_JSON_NAME),
+            FileType::Binary => OsStr::new(DB_BINARY_NAME),
+        }
+    }
+}
+
+pub const DB_TYPE_LIST: [FileType; 3] = [
+    FileType::JsonPretty,
+    FileType::Json,
+    FileType::Binary,
+];
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct FileData {
@@ -24,9 +47,26 @@ pub struct FileData {
     pub comment: Option<String>,
 }
 
+impl Default for FileData {
+    fn default() -> Self {
+        FileData {
+            tags: tags::TagsMap::new(),
+            comment: None
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Inner {
     pub files: BTreeMap<FilePath, FileData>,
+}
+
+impl Default for Inner {
+    fn default() -> Self {
+        Inner {
+            files: BTreeMap::new()
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -34,31 +74,69 @@ pub struct DbLock {
     path: FilePath,
 }
 
-#[derive(Debug)]
-pub struct Db {
-    file_type: FileType,
-    inner: Inner,
-    path: DbPath,
-}
+impl DbLock {
+    fn check_exists(dir: &Path) -> anyhow::Result<bool> {
+        let Some(metadata) = fs::get_metadata(dir.join("db.lock"))
+            .context("failed to get metadata for db.lock")? else {
+            return Ok(false);
+        };
 
-fn get_metadata(path: &Path) -> Result<Option<Metadata>, std::io::Error> {
-    match path.metadata() {
-        Ok(m) => Ok(Some(m)),
-        Err(err) => match err.kind() {
-            ErrorKind::NotFound => Ok(None),
-            _ => Err(err),
+        if metadata.is_file() {
+            Ok(true);
+        } else {
+            Err(anyhow::anyhow!("a db.lock exists but is not a file"));
         }
+    }
+
+    fn create(dir: &Path) -> anyhow::Result<Self> {
+        let path = dir.join("db.lock");
+
+        let open_result = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path);
+
+        if let Err(err) = open_result {
+            match err.kind() {
+                ErrorKind::AlreadyExists => {
+                    return Err(anyhow::anyhow!("a db.lock already exists."));
+                },
+                _ => {
+                    return Err(anyhow::Error::new(err)
+                        .context("failed to create db.lock"));
+                }
+            }
+        }
+
+        Ok(DbLock { path: path.into() }))
+    }
+
+    fn drop(self) -> anyhow::Result<()> {
+        std::fs::remove_file(self.path)
+            .context("failed to remove db.lock")
     }
 }
 
-impl Db {
-    pub fn find_file(ref_path: &PathBuf) -> anyhow::Result<Option<(DbPath, FileType)>> {
-        let to_check = [
-            ("db.pretty.json", FileType::JsonPretty),
-            ("db.json", FileType::Json),
-            ("db.bincode", FileType::Binary),
-        ];
+#[derive(Debug)]
+pub struct Db {
+    file_type: FileType,
+    pub inner: Inner,
+    path: DbPath,
+}
 
+impl Db {
+    pub fn new<P>(path: P, file_type: FileType) -> Self
+    where
+        P: Into<Box<Path>>,
+    {
+        Db {
+            file_type,
+            inner: Inner::default(),
+            path: path.into(),
+        }
+    }
+
+    pub fn find_file(ref_path: &PathBuf) -> anyhow::Result<Option<(DbPath, FileType)>> {
         for ancestor in ref_path.ancestors() {
             let fsm_dir = ancestor.join(".fsm");
 
@@ -71,8 +149,8 @@ impl Db {
                 continue;
             }
 
-            for (check, file_type) in &to_check {
-                let db_file = fsm_dir.join(check);
+            for file_type in &DB_TYPE_LIST {
+                let db_file = fsm_dir.join(file_type.get_file_name_os());
 
                 let Some(metadata) = get_metadata(&db_file)
                     .context("io error when checking for db file")? else {
@@ -90,7 +168,12 @@ impl Db {
         Ok(None)
     }
 
-    pub fn load(path: PathBuf, file_type: FileType) -> anyhow::Result<Option<Self>> {
+    fn read_file<P>(path: P, file_type: FileType) -> anyhow::Result<Self>
+    where
+        P: Into<Box<Path>>
+    {
+        let path = path.into();
+
         let file = std::fs::OpenOptions::new()
             .read(true)
             .open(&path)
@@ -105,17 +188,25 @@ impl Db {
                 .with_context(|| format!("failed deserializing db binary: {}", path.display()))?
         };
 
-        Ok(Some(Db {
-            file_type: file_type,
+        Ok(Db {
+            file_type,
             inner,
-            path: path.into(),
-        }))
+            path,
+        })
     }
 
-    pub fn save(&self) -> anyhow::Result<()> {
+    pub fn load<P>(path: P, file_type: FileType) -> anyhow::Result<Self>
+    where
+        P: Into<Box<Path>>
+    {
+        Self::read_file(path, file_type)
+    }
+
+    fn write_file(&self, create: bool) -> anyhow::Result<()> {
         let file = std::fs::OpenOptions::new()
             .write(true)
             .truncate(true)
+            .create(create)
             .open(&self.path)
             .with_context(|| format!("failed to open db file: {}", self.path.display()))?;
         let writer = BufWriter::new(file);
@@ -131,19 +222,59 @@ impl Db {
 
         Ok(())
     }
+
+    pub fn create(&self) -> anyhow::Result<()> {
+        self.write_file(true)
+    }
+
+    pub fn save(&self) -> anyhow::Result<()> {
+        self.write_file(false)
+    }
+
+    pub fn parent_dir(&self) -> &Path {
+        self.path.parnet().unwrap()
+    }
 }
 
-struct WorkingSet {
-    dbs: HashMap<DbPath, Db>,
-    files: HashMap<FilePath, DbPath>,
+pub struct WorkingSet {
+    pub dbs: HashMap<DbPath, Db>,
+    pub files: HashMap<FilePath, DbPath>,
 }
 
 impl WorkingSet {
-    pub fn add_file(&mut self, ref_path: PathBuf) -> anyhow::Result<()> {
+    pub fn new() -> Self {
+        WorkingSet {
+            dbs: HashMap::new(),
+            files: HashMap::new(),
+        }
+    }
+
+    pub fn add_file(&mut self, ref_path: PathBuf) -> anyhow::Result<bool> {
         let Some((path, file_type)) = Db::find_file(&ref_path)? else {
-            return Err(anyhow::anyhow!("Failed to find db file: {}", ref_path.display()));
+            return Ok(false);
         };
 
-        Ok(())
+        let common_root = path.parent()
+            .context("db file directory missing from path")?
+            .parent()
+            .context(".fsm parent directory missing from path")?;
+
+        let from_root = ref_path.strip_prefix(common_root)
+            .context("file and db do not share a common root")?;
+
+        if self.dbs.contains_key(&path) {
+            log::info!("updating file mapping");
+
+            self.files.insert(from_root.into(), path);
+        } else {
+            log::info!("loading db file: {}", path.display());
+
+            let db = Db::load(path.clone(), file_type)?;
+
+            self.dbs.insert(path.clone(), db);
+            self.files.insert(from_root.into(), path);
+        }
+
+        Ok(true)
     }
 }

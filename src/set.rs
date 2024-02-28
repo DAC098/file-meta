@@ -1,12 +1,13 @@
 use clap::Args;
-use anyhow::Context;
 
+use crate::tags;
 use crate::file;
+use crate::db;
 
 #[derive(Debug, Args)]
 pub struct SetArgs {
     #[command(flatten)]
-    tags: file::tags::TagArgs,
+    tags: tags::TagArgs,
 
     /// sets a comment to the files
     #[arg(short = 'c', long, conflicts_with("drop_comment"))]
@@ -21,25 +22,50 @@ pub struct SetArgs {
 }
 
 pub fn set_data(args: SetArgs) -> anyhow::Result<()> {
-    for file_result in args.file_list.get_files()? {
-        let mut file = match file_result {
-            Ok(f) => f,
-            Err(err) => {
-                println!("{}", err);
-                continue;
-            }
+    let mut working_set = db::WorkingSet::new();
+
+    for path_result in args.file_list.get_canon()? {
+        let Some(path) = file::log_path_result(path_result) else {
+            continue;
         };
 
-        file.data.tags = args.tags.update(file.data.tags);
+        working_set.add_file(path)?;
+    }
 
-        if args.drop_comment {
-            file.data.comment = None;
-        } else if let Some(comment) = &args.comment {
-            file.data.comment = Some(comment.clone());
+    for (file, db_path) in working_set.files {
+        let db = working_set.dbs.get_mut(&db_path).unwrap();
+
+        if let Some(existing) = db.inner.files.get_mut(&file) {
+            log::info!("updating \"{}\" in db \"{}\"", file.display(), db_path.display());
+
+            args.tags.update(&mut existing.tags);
+
+            if args.drop_comment {
+                existing.comment = None;
+            } else if let Some(comment) = &args.comment {
+                existing.comment = Some(comment.clone());
+            }
+        } else {
+            log::info!("adding \"{}\" to db \"{}\"", file.display(), db_path.display());
+
+            let mut data = db::FileData::default();
+
+            args.tags.update(&mut data.tags);
+
+            if args.drop_comment {
+                data.comment = None;
+            } else if let Some(comment) = &args.comment {
+                data.comment = Some(comment.clone());
+            }
+
+            db.inner.files.insert(file, data);
         }
+    }
 
-        file.save()
-            .with_context(|| format!("failed to save changes for file: \"{}\"", file.ref_path().display()))?;
+    for (path, db) in working_set.dbs {
+        log::debug!("db: {}\n{:#?}", path.display(), db);
+
+        db.save()?;
     }
 
     Ok(())

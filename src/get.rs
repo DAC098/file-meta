@@ -2,6 +2,8 @@ use std::collections::BinaryHeap;
 
 use clap::Args;
 
+use crate::tags;
+use crate::db;
 use crate::file;
 
 #[derive(Debug, Args)]
@@ -19,27 +21,35 @@ pub struct GetArgs {
 }
 
 pub fn get_data(args: GetArgs) -> anyhow::Result<()> {
-    let files_len = args.file_list.files.len();
+    let mut working_set = db::WorkingSet::new();
 
-    for file_result in args.file_list.get_files()? {
-        let file = match file_result {
-            Ok(f) => f,
-            Err(err) => {
-                println!("{}", err);
-                continue;
-            }
+    for path_result in args.file_list.get_canon()? {
+        let Some(path) = file::log_path_result(path_result) else {
+            continue;
+        };
+
+        working_set.add_file(path)?;
+    }
+
+    let files_len = working_set.files.len();
+
+    for (file, db_path) in &working_set.files {
+        let db = working_set.dbs.get(db_path).unwrap();
+
+        let Some(existing) = db.inner.files.get(file) else {
+            continue;
         };
 
         if files_len > 1 {
-            println!("{}", file.ref_path().display());
+            println!("{}", file.display());
         }
 
         if !args.no_tags {
-            print_tags(&file.data.tags);
+            print_tags(&existing.tags);
         }
 
         if !args.no_comment {
-            if let Some(comment) = &file.data.comment {
+            if let Some(comment) = &existing.comment {
                 println!("comment: {}", comment);
             }
         }
@@ -48,7 +58,7 @@ pub fn get_data(args: GetArgs) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn print_tags(tags: &file::tags::TagsMap) {
+fn print_tags(tags: &tags::TagsMap) {
     let mut max_len = 0usize;
     let mut no_value = BinaryHeap::new();
     let mut with_value = BinaryHeap::new();

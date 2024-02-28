@@ -14,7 +14,7 @@ pub struct TagArgs {
     #[arg(
         short,
         long,
-        conflicts_with_all(["add_tag", "drop_tag"]),
+        conflicts_with_all(["add", "add_url", "add_num", "drop", "drop_all"]),
         value_parser(parse_tag)
     )]
     pub tag: Vec<Tag>,
@@ -25,7 +25,7 @@ pub struct TagArgs {
     /// the operation will fail
     #[arg(
         long,
-        conflicts_with_all(["add", "add_url", "add_num", "drop"]),
+        conflicts_with_all(["add", "add_url", "add_num", "drop", "drop_all"]),
         value_parser(parse_url_tag)
     )]
     pub tag_url: Vec<Tag>,
@@ -36,7 +36,7 @@ pub struct TagArgs {
     /// then the operation will fail
     #[arg(
         long,
-        conflicts_with_all(["add", "add_url", "add_num", "drop"]),
+        conflicts_with_all(["add", "add_url", "add_num", "drop", "drop_all"]),
         value_parser(parse_num_tag)
     )]
     pub tag_num: Vec<Tag>,
@@ -93,16 +93,16 @@ pub struct TagArgs {
 }
 
 impl TagArgs {
-    pub fn update(&self, mut tags: TagsMap) -> TagsMap {
+    pub fn update(&self, tags: &mut TagsMap) {
         if self.drop_all {
-            TagsMap::new()
+            tags.clear();
         } else if !self.tag.is_empty() ||
             !self.tag_url.is_empty() ||
             !self.tag_num.is_empty() {
-            let mut rtn = TagsMap::from_iter(self.tag.iter().cloned());
-            rtn.extend(self.tag_url.iter().cloned());
-            rtn.extend(self.tag_num.iter().cloned());
-            rtn
+            tags.clear();
+            tags.extend(self.tag.iter().cloned());
+            tags.extend(self.tag_url.iter().cloned());
+            tags.extend(self.tag_num.iter().cloned());
         } else if !self.add.is_empty() ||
             !self.add_url.is_empty() ||
             !self.add_num.is_empty() ||
@@ -114,10 +114,6 @@ impl TagArgs {
             tags.extend(self.add.iter().cloned());
             tags.extend(self.add_url.iter().cloned());
             tags.extend(self.add_num.iter().cloned());
-
-            tags
-        } else {
-            tags
         }
     }
 }
