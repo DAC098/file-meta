@@ -1,139 +1,30 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::fmt::{Display, Formatter};
 
 use serde::{Serialize, Deserialize};
-use clap::Args;
 use url::Url;
 
-#[derive(Debug, Args)]
-pub struct TagArgs {
-    /// set a tag to the files
-    ///
-    /// this will override all previously set tags for the files to only
-    /// include the provided tags
-    #[arg(
-        short,
-        long,
-        conflicts_with_all(["add", "add_url", "add_num", "drop", "drop_all"]),
-        value_parser(parse_tag)
-    )]
-    pub tag: Vec<Tag>,
-
-    /// set a url tag to the files
-    ///
-    /// similar to a regular tag but if the tag value is not a valid url then
-    /// the operation will fail
-    #[arg(
-        long,
-        conflicts_with_all(["add", "add_url", "add_num", "drop", "drop_all"]),
-        value_parser(parse_url_tag)
-    )]
-    pub tag_url: Vec<Tag>,
-
-    /// set a number tag to the files
-    ///
-    /// similar to the regular tag but if the tag value is not a valid integer
-    /// then the operation will fail
-    #[arg(
-        long,
-        conflicts_with_all(["add", "add_url", "add_num", "drop", "drop_all"]),
-        value_parser(parse_num_tag)
-    )]
-    pub tag_num: Vec<Tag>,
-
-    /// add a tag to the files
-    ///
-    /// this will add to the existing list of tags for the specified files
-    #[arg(
-        short = 'a',
-        long,
-        conflicts_with_all(["tag", "tag_url", "tag_num"]),
-        value_parser(parse_tag)
-    )]
-    pub add: Vec<Tag>,
-
-    /// add a url tag to the files
-    ///
-    /// if the tag value is not a valid url then the operation will fail
-    #[arg(
-        long,
-        conflicts_with_all(["tag", "tag_url", "tag_num"]),
-        value_parser(parse_url_tag)
-    )]
-    pub add_url: Vec<Tag>,
-
-    /// add a number tag to the files
-    ///
-    /// if the tag value is not a valid integer then the operation will fail
-    #[arg(
-        long,
-        conflicts_with_all(["tag", "tag_url", "tag_num"]),
-        value_parser(parse_num_tag)
-    )]
-    pub add_num: Vec<Tag>,
-
-    /// remove a tag from the files
-    ///
-    /// this will remove a file from the existing list of tags for the
-    /// specified files. if the tag is not found then nothing will happen
-    /// update files with new comment
-    #[arg(
-        short = 'd',
-        long,
-        conflicts_with_all(["tag", "tag_url", "tag_num"])
-    )]
-    pub drop: Vec<String>,
-
-    /// remote all tags from the files
-    #[arg(
-        long,
-        conflicts_with_all(["tag", "tag_url", "tag_num", "add", "add_url", "add_num", "drop"])
-    )]
-    pub drop_all: bool
-}
-
-impl TagArgs {
-    pub fn update(&self, tags: &mut TagsMap) {
-        if self.drop_all {
-            tags.clear();
-        } else if !self.tag.is_empty() ||
-            !self.tag_url.is_empty() ||
-            !self.tag_num.is_empty() {
-            tags.clear();
-            tags.extend(self.tag.iter().cloned());
-            tags.extend(self.tag_url.iter().cloned());
-            tags.extend(self.tag_num.iter().cloned());
-        } else if !self.add.is_empty() ||
-            !self.add_url.is_empty() ||
-            !self.add_num.is_empty() ||
-            !self.drop.is_empty() {
-            for tag in &self.drop {
-                tags.remove(tag);
-            }
-
-            tags.extend(self.add.iter().cloned());
-            tags.extend(self.add_url.iter().cloned());
-            tags.extend(self.add_num.iter().cloned());
-        }
-    }
-}
-
-pub type TagsMap = HashMap<String, Option<TagValue>>;
+pub type TagsMap = BTreeMap<String, Option<TagValue>>;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum TagValue {
     Number(i64),
+    Bool(bool),
     Url(url::Url),
     Simple(String),
 }
 
 impl TagValue {
-    fn parse_url(value: &str) -> Result<Self, url::ParseError> {
-        Ok(TagValue::Url(Url::parse(value)?))
+    fn parse_num(value: &str) -> Result<Self, std::num::ParseIntError> {
+        Ok(TagValue::Number(value.parse()?))
     }
 
-    fn parse_num(value: &str) -> anyhow::Result<Self, std::num::ParseIntError> {
-        Ok(TagValue::Number(value.parse()?))
+    fn parse_bool(value: &str) -> Result<Self, std::str::ParseBoolError> {
+        Ok(TagValue::Bool(value.parse()?))
+    }
+
+    fn parse_url(value: &str) -> Result<Self, url::ParseError> {
+        Ok(TagValue::Url(Url::parse(value)?))
     }
 }
 
@@ -141,6 +32,7 @@ impl Display for TagValue {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             TagValue::Number(v) => write!(f, "{}", v),
+            TagValue::Bool(v) => write!(f, "{}", v),
             TagValue::Url(v) => write!(f, "{}", v),
             TagValue::Simple(v) => write!(f, "{}", v),
         }
@@ -151,6 +43,8 @@ impl From<&str> for TagValue {
     fn from(value: &str) -> Self {
         if let Ok(i64_value) = value.parse() {
             TagValue::Number(i64_value)
+        } else if let Ok(bool_) = value.parse() {
+            TagValue::Bool(bool_)
         } else if let Ok(url) = value.parse() {
             TagValue::Url(url)
         } else {
@@ -181,7 +75,7 @@ pub fn parse_tag(arg: &str) -> Result<Tag, String> {
     }
 }
 
-pub fn parse_url_tag(arg: &str) -> Result<Tag, String> {
+fn get_name_value<'a>(arg: &'a str) -> Result<(&'a str, &'a str), String> {
     if let Some((name, value)) = arg.split_once(':') {
         if name.is_empty() {
             return Err(format!("tag name is empty"));
@@ -191,35 +85,35 @@ pub fn parse_url_tag(arg: &str) -> Result<Tag, String> {
             return Err(format!("missing url data"));
         }
 
-        match TagValue::parse_url(value) {
-            Ok(url) => Ok((name.into(), Some(url))),
-            Err(err) => {
-                Err(format!("invalid url provided: \"{}\" {}", value, err))
-            }
-        }
+        Ok((name, value))
     } else {
         Err(format!("missing tag value"))
+    }
+}
+
+pub fn parse_url_tag(arg: &str) -> Result<Tag, String> {
+    let (name, value) = get_name_value(arg)?;
+
+    match TagValue::parse_url(value) {
+        Ok(url) => Ok((name.into(), Some(url))),
+        Err(err) => Err(format!("invalid url provided: {}", err))
     }
 }
 
 pub fn parse_num_tag(arg: &str) -> Result<Tag, String> {
-    if let Some((name, value)) = arg.split_once(':') {
-        if name.is_empty() {
-            return Err(format!("tag name is empty"));
-        }
+    let (name, value) = get_name_value(arg)?;
 
-        if value.is_empty() {
-            return Err(format!("missing num data"));
-        }
-
-        match TagValue::parse_num(value) {
-            Ok(url) => Ok((name.into(), Some(url))),
-            Err(err) => {
-                Err(format!("invalid num provided: \"{}\" {}", value, err))
-            }
-        }
-    } else {
-        Err(format!("missing tag value"))
+    match TagValue::parse_num(value) {
+        Ok(url) => Ok((name.into(), Some(url))),
+        Err(err) => Err(format!("invalid num provided: {}", err))
     }
 }
 
+pub fn parse_bool_tag(arg: &str) -> Result<Tag, String> {
+    let (name, value) = get_name_value(arg)?;
+
+    match TagValue::parse_bool(value) {
+        Ok(b) => Ok((name.into(), Some(b))),
+        Err(err) => Err(format!("invalid bool provided: {}", err))
+    }
+}

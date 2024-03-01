@@ -1,8 +1,9 @@
-use std::collections::{HashMap, BTreeMap};
+use std::collections::{HashMap, BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
-use std::io::{BufWriter, BufReader};
+use std::io::{ErrorKind, BufWriter, BufReader};
 use std::default::Default;
 use std::ffi::OsStr;
+use std::fs::OpenOptions;
 
 use serde::{Serialize, Deserialize};
 use anyhow::Context;
@@ -45,13 +46,17 @@ pub const DB_TYPE_LIST: [FileType; 3] = [
 pub struct FileData {
     pub tags: tags::TagsMap,
     pub comment: Option<String>,
+    pub created: chrono::DateTime<chrono::Utc>,
+    pub updated: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 impl Default for FileData {
     fn default() -> Self {
         FileData {
             tags: tags::TagsMap::new(),
-            comment: None
+            comment: None,
+            created: chrono::Utc::now(),
+            updated: None,
         }
     }
 }
@@ -59,12 +64,14 @@ impl Default for FileData {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Inner {
     pub files: BTreeMap<FilePath, FileData>,
+    pub collections: BTreeMap<String, BTreeSet<FilePath>>,
 }
 
 impl Default for Inner {
     fn default() -> Self {
         Inner {
-            files: BTreeMap::new()
+            files: BTreeMap::new(),
+            collections: BTreeMap::new(),
         }
     }
 }
@@ -76,22 +83,24 @@ pub struct DbLock {
 
 impl DbLock {
     fn check_exists(dir: &Path) -> anyhow::Result<bool> {
-        let Some(metadata) = fs::get_metadata(dir.join("db.lock"))
+        let lock_file = dir.join("db.lock");
+
+        let Some(metadata) = get_metadata(&lock_file)
             .context("failed to get metadata for db.lock")? else {
             return Ok(false);
         };
 
         if metadata.is_file() {
-            Ok(true);
+            Ok(true)
         } else {
-            Err(anyhow::anyhow!("a db.lock exists but is not a file"));
+            Err(anyhow::anyhow!("a db.lock exists but is not a file"))
         }
     }
 
     fn create(dir: &Path) -> anyhow::Result<Self> {
         let path = dir.join("db.lock");
 
-        let open_result = std::fs::OpenOptions::new()
+        let open_result = OpenOptions::new()
             .write(true)
             .create_new(true)
             .open(&path);
@@ -108,7 +117,7 @@ impl DbLock {
             }
         }
 
-        Ok(DbLock { path: path.into() }))
+        Ok(DbLock { path: path.into() })
     }
 
     fn drop(self) -> anyhow::Result<()> {
@@ -136,7 +145,12 @@ impl Db {
         }
     }
 
-    pub fn find_file(ref_path: &PathBuf) -> anyhow::Result<Option<(DbPath, FileType)>> {
+    pub fn find_file<P>(ref_path: P) -> anyhow::Result<Option<(DbPath, FileType)>>
+    where
+        P: AsRef<Path>
+    {
+        let ref_path = ref_path.as_ref();
+
         for ancestor in ref_path.ancestors() {
             let fsm_dir = ancestor.join(".fsm");
 
@@ -174,11 +188,13 @@ impl Db {
     {
         let path = path.into();
 
-        let file = std::fs::OpenOptions::new()
+        let file = OpenOptions::new()
             .read(true)
             .open(&path)
             .with_context(|| format!("failed reading db: {}", path.display()))?;
         let reader = BufReader::new(file);
+
+        let start = std::time::Instant::now();
 
         let inner = match &file_type {
             FileType::JsonPretty |
@@ -187,6 +203,8 @@ impl Db {
             FileType::Binary => bincode::deserialize_from(reader)
                 .with_context(|| format!("failed deserializing db binary: {}", path.display()))?
         };
+
+        log::info!("db parse time: {:?}", start.elapsed());
 
         Ok(Db {
             file_type,
@@ -203,13 +221,15 @@ impl Db {
     }
 
     fn write_file(&self, create: bool) -> anyhow::Result<()> {
-        let file = std::fs::OpenOptions::new()
+        let file = OpenOptions::new()
             .write(true)
             .truncate(true)
             .create(create)
             .open(&self.path)
             .with_context(|| format!("failed to open db file: {}", self.path.display()))?;
         let writer = BufWriter::new(file);
+
+        let start = std::time::Instant::now();
 
         match &self.file_type {
             FileType::JsonPretty => serde_json::to_writer_pretty(writer, &self.inner)
@@ -219,6 +239,8 @@ impl Db {
             FileType::Binary => bincode::serialize_into(writer, &self.inner)
                 .with_context(|| format!("failed serializing db binary: {}", self.path.display()))?
         }
+
+        log::info!("db save time: {:?}", start.elapsed());
 
         Ok(())
     }
@@ -232,7 +254,7 @@ impl Db {
     }
 
     pub fn parent_dir(&self) -> &Path {
-        self.path.parnet().unwrap()
+        self.path.parent().unwrap()
     }
 }
 
