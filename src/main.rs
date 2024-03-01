@@ -11,6 +11,7 @@ mod set;
 mod open;
 mod init;
 mod dump;
+mod coll;
 
 #[derive(Debug, Parser)]
 struct AppArgs {
@@ -42,6 +43,9 @@ enum FileCmd {
 
     /// dumps a database file to stdout
     Dump(dump::DumpArgs),
+
+    /// manages collections in the db
+    Coll(coll::CollectionArgs),
 }
 
 const RUST_LOG_ENV: &str = "RUST_LOG";
@@ -65,5 +69,6 @@ fn main() -> anyhow::Result<()> {
         FileCmd::Open(open_args) => open::open_tag(open_args),
         FileCmd::Init(init_args) => init::init_db(init_args),
         FileCmd::Dump(dump_args) => dump::dump_db(dump_args),
+        FileCmd::Coll(coll_args) => coll::manage(coll_args),
     }
 }

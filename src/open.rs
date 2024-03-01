@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use clap::Args;
 use anyhow::Context;
 
@@ -7,46 +9,53 @@ use crate::db;
 
 #[derive(Debug, Args)]
 pub struct OpenArgs {
+    /// name of the collection to open
+    #[arg(long)]
+    coll: Option<String>,
+
     /// the desired tag to open
+    #[arg(long)]
     tag: String,
 
-    #[command(flatten)]
-    file_list: file::FileList,
+    /// the list of files to open
+    #[arg(
+        trailing_var_arg = true,
+        required_unless_present("coll")
+    )]
+    file_list: Vec<PathBuf>,
 }
 
 pub fn open_tag(args: OpenArgs) -> anyhow::Result<()> {
-    let mut working_set = db::WorkingSet::new();
+    let db = db::Db::cwd_load()?;
 
-    for path_result in args.file_list.get_canon()? {
+    for path_result in file::CanonFiles::new(&args.file_list)? {
         let Some(path) = file::log_path_result(path_result) else {
             continue;
         };
 
-        working_set.add_file(path)?;
-    }
+        let Some(adjusted) = db.maybe_common_root(&path) else {
+            continue;
+        };
 
-    for (file, db_path) in working_set.files {
-        let db = working_set.dbs.get(&db_path).unwrap();
-
-        let Some(existing) = db.inner.files.get(&file) else {
-            println!("{} {} does not exist", file.display(), args.tag);
+        let Some(existing) = db.inner.files.get(&adjusted) else {
+            println!("{} {} does not exist", adjusted.display(), args.tag);
             continue;
         };
 
         let Some(maybe) = existing.tags.get(&args.tag) else {
-            println!("{} {} does not exist", file.display(), args.tag);
+            println!("{} {} does not exist", adjusted.display(), args.tag);
             continue;
         };
 
         let Some(value) = maybe else {
-            println!("{} {} has no value", file.display(), args.tag);
+            println!("{} {} has no value", adjusted.display(), args.tag);
             continue;
         };
 
         let url = match value {
             tags::TagValue::Url(url) => url.to_string(),
             _ => {
-                println!("{} {} is not a valid url", file.display(), args.tag);
+                println!("{} {} is not a valid url", adjusted.display(), args.tag);
                 continue;
             }
         };

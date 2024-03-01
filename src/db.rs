@@ -1,5 +1,5 @@
-use std::collections::{HashMap, BTreeMap, BTreeSet};
-use std::path::{Path, PathBuf};
+use std::collections::{BTreeMap, BTreeSet};
+use std::path::Path;
 use std::io::{ErrorKind, BufWriter, BufReader};
 use std::default::Default;
 use std::ffi::OsStr;
@@ -9,11 +9,12 @@ use serde::{Serialize, Deserialize};
 use anyhow::Context;
 use clap::ValueEnum;
 
-use crate::fs::get_metadata;
+use crate::fs::{cwd, get_metadata};
 use crate::tags;
 
 type DbPath = Box<Path>;
 type FilePath = Box<Path>;
+type RootPath = Box<Path>;
 
 const DB_PRETTY_JSON_NAME: &str = "db.pretty.json";
 const DB_JSON_NAME: &str = "db.json";
@@ -131,18 +132,31 @@ pub struct Db {
     file_type: FileType,
     pub inner: Inner,
     path: DbPath,
+    root: RootPath,
 }
 
 impl Db {
     pub fn new<P>(path: P, file_type: FileType) -> Self
     where
-        P: Into<Box<Path>>,
+        P: Into<DbPath>,
     {
+        let path = path.into();
+        let root = Self::get_root(&path);
+
         Db {
             file_type,
             inner: Inner::default(),
-            path: path.into(),
+            path,
+            root,
         }
+    }
+
+    fn get_root(path: &Path) -> RootPath {
+        path.parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .into()
     }
 
     pub fn find_file<P>(ref_path: P) -> anyhow::Result<Option<(DbPath, FileType)>>
@@ -206,10 +220,15 @@ impl Db {
 
         log::info!("db parse time: {:?}", start.elapsed());
 
+        let root = Self::get_root(&path);
+
+        log::debug!("loaded {}", path.display());
+
         Ok(Db {
             file_type,
             inner,
             path,
+            root,
         })
     }
 
@@ -218,6 +237,16 @@ impl Db {
         P: Into<Box<Path>>
     {
         Self::read_file(path, file_type)
+    }
+
+    pub fn cwd_load() -> anyhow::Result<Self> {
+        let cwd = cwd()?;
+
+        let Some((path, file_type)) = Self::find_file(&cwd)? else {
+            return Err(anyhow::anyhow!("no db found"));
+        };
+
+        Self::load(path, file_type)
     }
 
     fn write_file(&self, create: bool) -> anyhow::Result<()> {
@@ -253,50 +282,34 @@ impl Db {
         self.write_file(false)
     }
 
-    pub fn parent_dir(&self) -> &Path {
-        self.path.parent().unwrap()
-    }
-}
-
-pub struct WorkingSet {
-    pub dbs: HashMap<DbPath, Db>,
-    pub files: HashMap<FilePath, DbPath>,
-}
-
-impl WorkingSet {
-    pub fn new() -> Self {
-        WorkingSet {
-            dbs: HashMap::new(),
-            files: HashMap::new(),
-        }
+    pub fn root(&self) -> &Path {
+        &self.root
     }
 
-    pub fn add_file(&mut self, ref_path: PathBuf) -> anyhow::Result<bool> {
-        let Some((path, file_type)) = Db::find_file(&ref_path)? else {
-            return Ok(false);
-        };
+    pub fn common_root<P>(&self, ref_path: P) -> anyhow::Result<FilePath>
+    where
+        P: AsRef<Path>
+    {
+        let ref_path = ref_path.as_ref();
 
-        let common_root = path.parent()
-            .context("db file directory missing from path")?
-            .parent()
-            .context(".fsm parent directory missing from path")?;
+        log::debug!("root: {} ref_path: {}", self.root.display(), ref_path.display());
 
-        let from_root = ref_path.strip_prefix(common_root)
-            .context("file and db do not share a common root")?;
+        let from_root = ref_path.strip_prefix(&self.root)
+            .with_context(|| format!("file and db do not share a common root {}", ref_path.display()))?;
 
-        if self.dbs.contains_key(&path) {
-            log::info!("updating file mapping");
+        Ok(from_root.into())
+    }
 
-            self.files.insert(from_root.into(), path);
-        } else {
-            log::info!("loading db file: {}", path.display());
-
-            let db = Db::load(path.clone(), file_type)?;
-
-            self.dbs.insert(path.clone(), db);
-            self.files.insert(from_root.into(), path);
+    pub fn maybe_common_root<P>(&self, ref_path: P) -> Option<FilePath>
+    where
+        P: AsRef<Path>
+    {
+        match self.common_root(ref_path) {
+            Ok(p) => Some(p),
+            Err(err) => {
+                println!("{}", err);
+                None
+            }
         }
-
-        Ok(true)
     }
 }

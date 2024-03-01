@@ -111,21 +111,19 @@ fn update_tags(args: &SetArgs, tags: &mut tags::TagsMap) {
 }
 
 pub fn set_data(args: SetArgs) -> anyhow::Result<()> {
-    let mut working_set = db::WorkingSet::new();
+    let mut db = db::Db::cwd_load()?;
 
     for path_result in args.file_list.get_canon()? {
         let Some(path) = file::log_path_result(path_result) else {
             continue;
         };
 
-        working_set.add_file(path)?;
-    }
+        let Some(adjusted) = db.maybe_common_root(&path) else {
+            continue;
+        };
 
-    for (file, db_path) in working_set.files {
-        let db = working_set.dbs.get_mut(&db_path).unwrap();
-
-        if let Some(existing) = db.inner.files.get_mut(&file) {
-            log::info!("updating \"{}\" in db \"{}\"", file.display(), db_path.display());
+        if let Some(existing) = db.inner.files.get_mut(&adjusted) {
+            log::info!("updating \"{}\"", adjusted.display());
 
             update_tags(&args, &mut existing.tags);
 
@@ -137,7 +135,7 @@ pub fn set_data(args: SetArgs) -> anyhow::Result<()> {
 
             existing.updated = Some(chrono::Utc::now());
         } else {
-            log::info!("adding \"{}\" to db \"{}\"", file.display(), db_path.display());
+            log::info!("adding \"{}\"", adjusted.display());
 
             let mut data = db::FileData::default();
 
@@ -149,13 +147,11 @@ pub fn set_data(args: SetArgs) -> anyhow::Result<()> {
                 data.comment = Some(comment.clone());
             }
 
-            db.inner.files.insert(file, data);
+            db.inner.files.insert(adjusted, data);
         }
     }
 
-    for (path, db) in working_set.dbs {
-        db.save()?;
-    }
+    db.save()?;
 
     Ok(())
 }

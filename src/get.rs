@@ -21,27 +21,24 @@ pub struct GetArgs {
 }
 
 pub fn get_data(args: GetArgs) -> anyhow::Result<()> {
-    let mut working_set = db::WorkingSet::new();
+    let files_len = args.file_list.files.len();
+    let db = db::Db::cwd_load()?;
 
     for path_result in args.file_list.get_canon()? {
         let Some(path) = file::log_path_result(path_result) else {
             continue;
         };
 
-        working_set.add_file(path)?;
-    }
+        let Some(adjusted) = db.maybe_common_root(&path) else {
+            continue;
+        };
 
-    let files_len = working_set.files.len();
-
-    for (file, db_path) in &working_set.files {
-        let db = working_set.dbs.get(db_path).unwrap();
-
-        let Some(existing) = db.inner.files.get(file) else {
+        let Some(existing) = db.inner.files.get(&adjusted) else {
             continue;
         };
 
         if files_len > 1 {
-            println!("{}", file.display());
+            println!("{}", adjusted.display());
         }
 
         if !args.no_tags {

@@ -1,7 +1,6 @@
 use clap::Args;
 use anyhow::Context;
 
-use crate::file;
 use crate::db;
 
 #[derive(Debug, Args)]
@@ -16,15 +15,7 @@ pub struct DumpArgs {
 }
 
 pub fn dump_db(args: DumpArgs) -> anyhow::Result<()> {
-    let cwd = std::env::current_dir()
-        .context("failed to retreive the current working directory")?;
-
-    let Some((path, file_type)) = db::Db::find_file(&cwd)? else {
-        println!("failed to find the db file from this directory");
-        return Ok(());
-    };
-
-    let db_data = db::Db::load(path, file_type)?;
+    let db_data = db::Db::cwd_load()?;
 
     if args.json {
         if args.pretty {

@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::Context;
 use clap::Args;
+use path_absolutize::Absolutize as _;
 
 pub fn log_path_result(path_result: anyhow::Result<PathBuf>) -> Option<PathBuf> {
     match path_result {
@@ -39,15 +40,27 @@ pub struct CanonFiles<'a> {
 }
 
 impl<'a> CanonFiles<'a> {
+    pub fn new(list: &'a Vec<PathBuf>) -> anyhow::Result<Self> {
+        let cwd = std::env::current_dir()
+            .context("failed to get current working directory")?;
+
+        Ok(CanonFiles {
+            list_iter: list.iter(),
+            cwd,
+        })
+    }
+
     fn get_path(&self, path: &PathBuf) -> anyhow::Result<PathBuf> {
-        let modded = if !path.is_absolute() {
-            self.cwd.join(path)
+        let rtn = if !path.is_absolute() {
+            let resolved = path.absolutize_from(&self.cwd)
+                .with_context(|| format!("failed to canonicalize path: {}", path.display()))?;
+
+            resolved.into()
         } else {
             path.clone()
         };
 
-        modded.canonicalize()
-            .with_context(|| format!("failed to canonicalize path: {}", modded.display()))
+        Ok(rtn)
     }
 }
 
