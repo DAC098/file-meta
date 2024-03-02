@@ -12,6 +12,7 @@ mod open;
 mod init;
 mod dump;
 mod coll;
+mod drop;
 
 #[derive(Debug, Parser)]
 struct AppArgs {
@@ -46,6 +47,9 @@ enum FileCmd {
 
     /// manages collections in the db
     Coll(coll::CollectionArgs),
+
+    /// drops a db and fsm directory
+    Drop(drop::DropArgs),
 }
 
 const RUST_LOG_ENV: &str = "RUST_LOG";
@@ -70,5 +74,6 @@ fn main() -> anyhow::Result<()> {
         FileCmd::Init(init_args) => init::init_db(init_args),
         FileCmd::Dump(dump_args) => dump::dump_db(dump_args),
         FileCmd::Coll(coll_args) => coll::manage(coll_args),
+        FileCmd::Drop(drop_args) => drop::drop_db(drop_args),
     }
 }

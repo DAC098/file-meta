@@ -282,6 +282,10 @@ impl Db {
         self.write_file(false)
     }
 
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
     pub fn root(&self) -> &Path {
         &self.root
     }
