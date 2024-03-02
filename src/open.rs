@@ -64,7 +64,7 @@ pub fn open_tag(args: OpenArgs) -> anyhow::Result<()> {
 
                 log::info!("opening tag \"{}\" for file \"{}\"", tag, file.display());
 
-                if let Err(err) = opener::open(&url).context("failed to open url") {
+                if let Err(err) = open::that_detached(&url).context("failed to open url") {
                     println!("{}", err);
                 }
             } else {
@@ -72,7 +72,7 @@ pub fn open_tag(args: OpenArgs) -> anyhow::Result<()> {
 
                 log::info!("opening file: {}", full_path.display());
 
-                if let Err(err) = opener::open(&full_path).context("failed to open file") {
+                if let Err(err) = open::that_detached(&full_path).context("failed to open file") {
                     println!("{}", err);
                 }
             }
@@ -110,7 +110,7 @@ pub fn open_tag(args: OpenArgs) -> anyhow::Result<()> {
                 }
             };
 
-            if let Err(err) = opener::open(&url).context("failed to open url") {
+            if let Err(err) = open::that_detached(&url).context("failed to open url") {
                 println!("{}", err);
             }
         }

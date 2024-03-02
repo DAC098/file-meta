@@ -15,8 +15,8 @@ path-absolutize = "3"
 version = "4"
 features = ["derive"]
 
-[dependencies.opener]
-version = "0.6"
+[dependencies.open]
+version = "5"
 
 [dependencies.serde]
 version = "1"
