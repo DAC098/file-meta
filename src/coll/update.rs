@@ -1,39 +1,41 @@
+use std::path::PathBuf;
 use clap::Args;
 
+use crate::logging;
 use crate::db;
-use crate::file;
 
 #[derive(Debug, Args)]
 pub struct UpdateArgs {
     /// the name of the collection to update
     name: String,
 
-    #[command(flatten)]
-    file_list: file::FileList,
+    /// the file(s) to add to the collection
+    #[arg(trailing_var_arg = true, num_args(1..))]
+    files: Vec<PathBuf>,
 }
 
 pub fn update_coll(args: UpdateArgs) -> anyhow::Result<()> {
     let mut db = db::Db::cwd_load()?;
 
     {
-        let Some(mut coll) = db.inner.collections.remove(&args.name) else {
+        let path_iter = db.relative_to_db(&args.files);
+
+        let Some(coll) = db.inner.collections.get_mut(&args.name) else {
             println!("collection not found");
             return Ok(());
         };
 
-        for path_result in args.file_list.get_canon()? {
-            let Some(path) = file::log_path_result(path_result) else {
+        for path_result in path_iter {
+            let Some(path) = logging::log_result(path_result) else {
                 continue;
             };
 
-            let Some(adjusted) = db.maybe_common_root(&path) else {
+            let Some(adjusted) = logging::log_result(path.to_db()) else {
                 continue;
             };
 
-            coll.insert(adjusted);
+            coll.insert(adjusted.into());
         }
-
-        db.inner.collections.insert(args.name, coll);
     }
 
     db.save()?;

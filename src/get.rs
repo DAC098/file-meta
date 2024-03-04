@@ -1,10 +1,11 @@
 use std::collections::BinaryHeap;
+use std::path::PathBuf;
 
 use clap::Args;
 
+use crate::logging;
 use crate::tags;
 use crate::db;
-use crate::file;
 
 #[derive(Debug, Args)]
 pub struct GetArgs {
@@ -16,24 +17,25 @@ pub struct GetArgs {
     #[arg(long, conflicts_with("no_tags"))]
     no_comment: bool,
 
-    #[command(flatten)]
-    file_list: file::FileList,
+    /// the file(s) to retrieve data for
+    #[arg(trailing_var_arg = true, num_args(1..))]
+    files: Vec<PathBuf>,
 }
 
 pub fn get_data(args: GetArgs) -> anyhow::Result<()> {
-    let files_len = args.file_list.files.len();
+    let files_len = args.files.len();
     let db = db::Db::cwd_load()?;
 
-    for path_result in args.file_list.get_canon()? {
-        let Some(path) = file::log_path_result(path_result) else {
+    for path_result in db.relative_to_db(&args.files) {
+        let Some(path) = logging::log_result(path_result) else {
             continue;
         };
 
-        let Some(adjusted) = db.maybe_common_root(&path) else {
+        let Some(adjusted) = logging::log_result(path.to_db()) else {
             continue;
         };
 
-        let Some(existing) = db.inner.files.get(&adjusted) else {
+        let Some(existing) = db.inner.files.get(adjusted) else {
             continue;
         };
 

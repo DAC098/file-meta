@@ -6,7 +6,7 @@ use crate::db;
 #[derive(Debug, Args)]
 pub struct DropArgs {}
 
-pub fn drop_db(args: DropArgs) -> anyhow::Result<()> {
+pub fn drop_db(_args: DropArgs) -> anyhow::Result<()> {
     let db = db::Db::cwd_load()?;
 
     log::info!("dropping db file: {}", db.path().display());

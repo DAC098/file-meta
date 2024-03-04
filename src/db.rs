@@ -1,5 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::Path;
+use std::path::{PathBuf, Path};
 use std::io::{BufWriter, BufReader};
 use std::default::Default;
 use std::ffi::OsStr;
@@ -9,8 +9,9 @@ use serde::{Serialize, Deserialize};
 use anyhow::Context;
 use clap::{Args, Subcommand, ValueEnum};
 
-use crate::fs::{cwd, get_metadata};
+use crate::fs::get_metadata;
 use crate::tags;
+use crate::path;
 
 pub mod init;
 pub mod dump;
@@ -220,9 +221,7 @@ impl Db {
     }
 
     pub fn cwd_load() -> anyhow::Result<Self> {
-        let cwd = cwd()?;
-
-        let Some((path, format)) = Self::find_file(&cwd)? else {
+        let Some((path, format)) = Self::find_file(path::get_cwd())? else {
             return Err(anyhow::anyhow!("no db found"));
         };
 
@@ -270,30 +269,7 @@ impl Db {
         &self.root
     }
 
-    pub fn common_root<P>(&self, ref_path: P) -> anyhow::Result<FilePath>
-    where
-        P: AsRef<Path>
-    {
-        let ref_path = ref_path.as_ref();
-
-        log::debug!("root: {} ref_path: {}", self.root.display(), ref_path.display());
-
-        let from_root = ref_path.strip_prefix(&self.root)
-            .with_context(|| format!("file and db do not share a common root {}", ref_path.display()))?;
-
-        Ok(from_root.into())
-    }
-
-    pub fn maybe_common_root<P>(&self, ref_path: P) -> Option<FilePath>
-    where
-        P: AsRef<Path>
-    {
-        match self.common_root(ref_path) {
-            Ok(p) => Some(p),
-            Err(err) => {
-                println!("{}", err);
-                None
-            }
-        }
+    pub fn relative_to_db<'a>(&self, path_list: &'a Vec<PathBuf>) -> path::RelativePathList<'a> {
+        path::RelativePathList::new(self.root.clone(), path_list)
     }
 }

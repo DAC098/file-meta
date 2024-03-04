@@ -1,10 +1,10 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use clap::Args;
 use anyhow::Context;
 
+use crate::logging;
 use crate::tags;
-use crate::file;
 use crate::db;
 
 #[derive(Debug, Args)]
@@ -24,10 +24,10 @@ pub struct OpenArgs {
         trailing_var_arg = true,
         required_unless_present("coll")
     )]
-    file_list: Vec<PathBuf>,
+    files: Vec<PathBuf>,
 }
 
-pub fn open_tag(args: OpenArgs) -> anyhow::Result<()> {
+pub fn open(args: OpenArgs) -> anyhow::Result<()> {
     let db = db::Db::cwd_load()?;
 
     if let Some(name) = &args.coll {
@@ -40,7 +40,6 @@ pub fn open_tag(args: OpenArgs) -> anyhow::Result<()> {
             if let Some(tag) = &args.tag {
                 let Some(existing) = db.inner.files.get(file) else {
                     log::info!("file not found in db: {}", file.display());
-
                     continue;
                 };
 
@@ -54,19 +53,7 @@ pub fn open_tag(args: OpenArgs) -> anyhow::Result<()> {
                     continue;
                 };
 
-                let url = match value {
-                    tags::TagValue::Url(url) => url.to_string(),
-                    _ => {
-                        log::info!("{} {} is not a valid url", file.display(), tag);
-                        continue;
-                    }
-                };
-
-                log::info!("opening tag \"{}\" for file \"{}\"", tag, file.display());
-
-                if let Err(err) = open::that_detached(&url).context("failed to open url") {
-                    println!("{}", err);
-                }
+                open_tag(file, tag, value);
             } else {
                 let full_path = db.root().join(file);
 
@@ -78,16 +65,16 @@ pub fn open_tag(args: OpenArgs) -> anyhow::Result<()> {
             }
         }
     } else if let Some(tag) = &args.tag {
-        for path_result in file::CanonFiles::new(&args.file_list)? {
-            let Some(path) = file::log_path_result(path_result) else {
+        for path_result in db.relative_to_db(&args.files) {
+            let Some(path) = logging::log_result(path_result) else {
                 continue;
             };
 
-            let Some(adjusted) = db.maybe_common_root(&path) else {
+            let Some(adjusted) = logging::log_result(path.to_db()) else {
                 continue;
             };
 
-            let Some(existing) = db.inner.files.get(&adjusted) else {
+            let Some(existing) = db.inner.files.get(adjusted) else {
                 log::info!("{} {} does not exist", adjusted.display(), tag);
                 continue;
             };
@@ -102,19 +89,25 @@ pub fn open_tag(args: OpenArgs) -> anyhow::Result<()> {
                 continue;
             };
 
-            let url = match value {
-                tags::TagValue::Url(url) => url.to_string(),
-                _ => {
-                    log::info!("{} {} is not a valid url", adjusted.display(), tag);
-                    continue;
-                }
-            };
-
-            if let Err(err) = open::that_detached(&url).context("failed to open url") {
-                println!("{}", err);
-            }
+            open_tag(adjusted, tag, value);
         }
     }
 
     Ok(())
+}
+
+fn open_tag(file: &Path, tag: &str, value: &tags::TagValue) {
+    let url = match value {
+        tags::TagValue::Url(url) => url.to_string(),
+        _ => {
+            log::info!("{} {} is not a valid url", file.display(), tag);
+            return;
+        }
+    };
+
+    log::info!("opening tag \"{}\" for file \"{}\"", tag, file.display());
+
+    if let Err(err) = open::that_detached(&url).context("failed to open url") {
+        println!("{}", err);
+    }
 }

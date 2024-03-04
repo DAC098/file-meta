@@ -1,7 +1,9 @@
+use std::path::PathBuf;
+
 use clap::Args;
 
+use crate::logging;
 use crate::tags;
-use crate::file;
 use crate::db;
 
 #[derive(Debug, Args)]
@@ -80,8 +82,9 @@ pub struct SetArgs {
     #[arg(long, conflicts_with("comment"))]
     drop_comment: bool,
 
-    #[command(flatten)]
-    file_list: file::FileList,
+    /// the file(s) to update data for
+    #[arg(trailing_var_arg = true, num_args(1..))]
+    files: Vec<PathBuf>,
 }
 
 fn has_tags(args: &SetArgs) -> bool {
@@ -113,16 +116,16 @@ fn update_tags(args: &SetArgs, tags: &mut tags::TagsMap) {
 pub fn set_data(args: SetArgs) -> anyhow::Result<()> {
     let mut db = db::Db::cwd_load()?;
 
-    for path_result in args.file_list.get_canon()? {
-        let Some(path) = file::log_path_result(path_result) else {
+    for path_result in db.relative_to_db(&args.files) {
+        let Some(path) = logging::log_result(path_result) else {
             continue;
         };
 
-        let Some(adjusted) = db.maybe_common_root(&path) else {
+        let Some(adjusted) = logging::log_result(path.to_db()) else {
             continue;
         };
 
-        if let Some(existing) = db.inner.files.get_mut(&adjusted) {
+        if let Some(existing) = db.inner.files.get_mut(adjusted) {
             log::info!("updating \"{}\"", adjusted.display());
 
             update_tags(&args, &mut existing.tags);
@@ -147,7 +150,7 @@ pub fn set_data(args: SetArgs) -> anyhow::Result<()> {
                 data.comment = Some(comment.clone());
             }
 
-            db.inner.files.insert(adjusted, data);
+            db.inner.files.insert(adjusted.into(), data);
         }
     }
 

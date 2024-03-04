@@ -1,8 +1,9 @@
 use clap::{Parser, Subcommand};
 
+mod logging;
+mod path;
 mod fs;
 
-mod file;
 mod tags;
 mod db;
 
@@ -46,6 +47,8 @@ enum FileCmd {
 const RUST_LOG_ENV: &str = "RUST_LOG";
 
 fn main() -> anyhow::Result<()> {
+    path::set_cwd()?;
+
     let args = AppArgs::parse();
 
     if std::env::var_os(RUST_LOG_ENV).is_none() {
@@ -61,7 +64,7 @@ fn main() -> anyhow::Result<()> {
     match args.cmd {
         FileCmd::Get(get_args) => get::get_data(get_args),
         FileCmd::Set(set_args) => set::set_data(set_args),
-        FileCmd::Open(open_args) => open::open_tag(open_args),
+        FileCmd::Open(open_args) => open::open(open_args),
         FileCmd::Coll(coll_args) => coll::manage(coll_args),
         FileCmd::Db(db_args) => db::manage(db_args),
     }
