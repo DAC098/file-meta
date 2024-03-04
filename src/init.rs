@@ -7,8 +7,8 @@ use crate::db;
 #[derive(Debug, Args)]
 pub struct InitArgs {
     /// the type of db file to initalize
-    #[arg(long = "type")]
-    file_type: db::FileType,
+    #[arg(long, default_value = "json")]
+    format: db::Format,
 }
 
 pub fn init_db(args: InitArgs) -> anyhow::Result<()> {
@@ -27,8 +27,8 @@ pub fn init_db(args: InitArgs) -> anyhow::Result<()> {
 
         log::info!("checking for existing db");
 
-        for file_type in db::DB_TYPE_LIST {
-            let db_file = fsm_dir.join(file_type.get_file_name_os());
+        for format in db::FORMAT_LIST {
+            let db_file = fsm_dir.join(format.get_file_name_os());
 
             let Some(metadata) = fs::get_metadata(&db_file)
                 .context("io error when checking for db file")? else {
@@ -51,9 +51,9 @@ pub fn init_db(args: InitArgs) -> anyhow::Result<()> {
 
     log::info!("creating db file");
 
-    let db_file = fsm_dir.join(args.file_type.get_file_name_os());
+    let db_file = fsm_dir.join(args.format.get_file_name_os());
 
-    let db = db::Db::new(db_file, args.file_type);
+    let db = db::Db::new(db_file, args.format);
 
     db.create().context("failed to save new db instance")?;
 

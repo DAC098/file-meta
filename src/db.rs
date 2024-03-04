@@ -21,26 +21,26 @@ const DB_JSON_NAME: &str = "db.json";
 const DB_BINARY_NAME: &str = "db.bincode";
 
 #[derive(Debug, Clone, ValueEnum)]
-pub enum FileType {
+pub enum Format {
     JsonPretty,
     Json,
     Binary,
 }
 
-impl FileType {
+impl Format {
     pub fn get_file_name_os(&self) -> &OsStr {
         match self {
-            FileType::JsonPretty => OsStr::new(DB_PRETTY_JSON_NAME),
-            FileType::Json => OsStr::new(DB_JSON_NAME),
-            FileType::Binary => OsStr::new(DB_BINARY_NAME),
+            Format::JsonPretty => OsStr::new(DB_PRETTY_JSON_NAME),
+            Format::Json => OsStr::new(DB_JSON_NAME),
+            Format::Binary => OsStr::new(DB_BINARY_NAME),
         }
     }
 }
 
-pub const DB_TYPE_LIST: [FileType; 3] = [
-    FileType::JsonPretty,
-    FileType::Json,
-    FileType::Binary,
+pub const FORMAT_LIST: [Format; 3] = [
+    Format::JsonPretty,
+    Format::Json,
+    Format::Binary,
 ];
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -78,65 +78,15 @@ impl Default for Inner {
 }
 
 #[derive(Debug)]
-pub struct DbLock {
-    path: FilePath,
-}
-
-impl DbLock {
-    fn check_exists(dir: &Path) -> anyhow::Result<bool> {
-        let lock_file = dir.join("db.lock");
-
-        let Some(metadata) = get_metadata(&lock_file)
-            .context("failed to get metadata for db.lock")? else {
-            return Ok(false);
-        };
-
-        if metadata.is_file() {
-            Ok(true)
-        } else {
-            Err(anyhow::anyhow!("a db.lock exists but is not a file"))
-        }
-    }
-
-    fn create(dir: &Path) -> anyhow::Result<Self> {
-        let path = dir.join("db.lock");
-
-        let open_result = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&path);
-
-        if let Err(err) = open_result {
-            match err.kind() {
-                ErrorKind::AlreadyExists => {
-                    return Err(anyhow::anyhow!("a db.lock already exists."));
-                },
-                _ => {
-                    return Err(anyhow::Error::new(err)
-                        .context("failed to create db.lock"));
-                }
-            }
-        }
-
-        Ok(DbLock { path: path.into() })
-    }
-
-    fn drop(self) -> anyhow::Result<()> {
-        std::fs::remove_file(self.path)
-            .context("failed to remove db.lock")
-    }
-}
-
-#[derive(Debug)]
 pub struct Db {
-    file_type: FileType,
+    format: Format,
     pub inner: Inner,
     path: DbPath,
     root: RootPath,
 }
 
 impl Db {
-    pub fn new<P>(path: P, file_type: FileType) -> Self
+    pub fn new<P>(path: P, format: Format) -> Self
     where
         P: Into<DbPath>,
     {
@@ -144,7 +94,7 @@ impl Db {
         let root = Self::get_root(&path);
 
         Db {
-            file_type,
+            format,
             inner: Inner::default(),
             path,
             root,
@@ -159,7 +109,7 @@ impl Db {
             .into()
     }
 
-    pub fn find_file<P>(ref_path: P) -> anyhow::Result<Option<(DbPath, FileType)>>
+    pub fn find_file<P>(ref_path: P) -> anyhow::Result<Option<(DbPath, Format)>>
     where
         P: AsRef<Path>
     {
@@ -177,8 +127,8 @@ impl Db {
                 continue;
             }
 
-            for file_type in &DB_TYPE_LIST {
-                let db_file = fsm_dir.join(file_type.get_file_name_os());
+            for format in &FORMAT_LIST {
+                let db_file = fsm_dir.join(format.get_file_name_os());
 
                 let Some(metadata) = get_metadata(&db_file)
                     .context("io error when checking for db file")? else {
@@ -189,14 +139,14 @@ impl Db {
                     continue;
                 }
 
-                return Ok(Some((db_file.into(), file_type.clone())));
+                return Ok(Some((db_file.into(), format.clone())));
             }
         }
 
         Ok(None)
     }
 
-    fn read_file<P>(path: P, file_type: FileType) -> anyhow::Result<Self>
+    fn read_file<P>(path: P, format: Format) -> anyhow::Result<Self>
     where
         P: Into<Box<Path>>
     {
@@ -210,11 +160,11 @@ impl Db {
 
         let start = std::time::Instant::now();
 
-        let inner = match &file_type {
-            FileType::JsonPretty |
-            FileType::Json => serde_json::from_reader(reader)
+        let inner = match &format {
+            Format::JsonPretty |
+            Format::Json => serde_json::from_reader(reader)
                 .with_context(|| format!("failed deserializing db json: {}", path.display()))?,
-            FileType::Binary => bincode::deserialize_from(reader)
+            Format::Binary => bincode::deserialize_from(reader)
                 .with_context(|| format!("failed deserializing db binary: {}", path.display()))?
         };
 
@@ -225,28 +175,28 @@ impl Db {
         log::debug!("loaded {}", path.display());
 
         Ok(Db {
-            file_type,
+            format,
             inner,
             path,
             root,
         })
     }
 
-    pub fn load<P>(path: P, file_type: FileType) -> anyhow::Result<Self>
+    pub fn load<P>(path: P, format: Format) -> anyhow::Result<Self>
     where
         P: Into<Box<Path>>
     {
-        Self::read_file(path, file_type)
+        Self::read_file(path, format)
     }
 
     pub fn cwd_load() -> anyhow::Result<Self> {
         let cwd = cwd()?;
 
-        let Some((path, file_type)) = Self::find_file(&cwd)? else {
+        let Some((path, format)) = Self::find_file(&cwd)? else {
             return Err(anyhow::anyhow!("no db found"));
         };
 
-        Self::load(path, file_type)
+        Self::load(path, format)
     }
 
     fn write_file(&self, create: bool) -> anyhow::Result<()> {
@@ -260,12 +210,12 @@ impl Db {
 
         let start = std::time::Instant::now();
 
-        match &self.file_type {
-            FileType::JsonPretty => serde_json::to_writer_pretty(writer, &self.inner)
+        match &self.format {
+            Format::JsonPretty => serde_json::to_writer_pretty(writer, &self.inner)
                 .with_context(|| format!("failed serializing db json: {}", self.path.display()))?,
-            FileType::Json => serde_json::to_writer(writer, &self.inner)
+            Format::Json => serde_json::to_writer(writer, &self.inner)
                 .with_context(|| format!("failed serializing db json: {}", self.path.display()))?,
-            FileType::Binary => bincode::serialize_into(writer, &self.inner)
+            Format::Binary => bincode::serialize_into(writer, &self.inner)
                 .with_context(|| format!("failed serializing db binary: {}", self.path.display()))?
         }
 
