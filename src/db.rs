@@ -1,16 +1,46 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
-use std::io::{ErrorKind, BufWriter, BufReader};
+use std::io::{BufWriter, BufReader};
 use std::default::Default;
 use std::ffi::OsStr;
 use std::fs::OpenOptions;
 
 use serde::{Serialize, Deserialize};
 use anyhow::Context;
-use clap::ValueEnum;
+use clap::{Args, Subcommand, ValueEnum};
 
 use crate::fs::{cwd, get_metadata};
 use crate::tags;
+
+pub mod init;
+pub mod dump;
+pub mod drop;
+
+#[derive(Debug, Args)]
+pub struct DbArgs {
+    #[command(subcommand)]
+    cmd: ManageCmd
+}
+
+#[derive(Debug, Subcommand)]
+enum ManageCmd {
+    /// initializes a directory with an fsm db
+    Init(init::InitArgs),
+
+    /// dumps a database file to stdout
+    Dump(dump::DumpArgs),
+
+    /// drops a db and fsm directory
+    Drop(drop::DropArgs),
+}
+
+pub fn manage(args: DbArgs) -> anyhow::Result<()> {
+    match args.cmd {
+        ManageCmd::Init(init_args) => init::init_db(init_args),
+        ManageCmd::Dump(dump_args) => dump::dump_db(dump_args),
+        ManageCmd::Drop(drop_args) => drop::drop_db(drop_args),
+    }
+}
 
 type DbPath = Box<Path>;
 type FilePath = Box<Path>;

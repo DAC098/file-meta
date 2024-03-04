@@ -9,10 +9,7 @@ mod db;
 mod get;
 mod set;
 mod open;
-mod init;
-mod dump;
 mod coll;
-mod drop;
 
 #[derive(Debug, Parser)]
 struct AppArgs {
@@ -39,17 +36,11 @@ enum FileCmd {
     /// attempts to open up the value of a tag
     Open(open::OpenArgs),
 
-    /// initializes a directory with an fsm db
-    Init(init::InitArgs),
-
-    /// dumps a database file to stdout
-    Dump(dump::DumpArgs),
-
     /// manages collections in the db
     Coll(coll::CollectionArgs),
 
-    /// drops a db and fsm directory
-    Drop(drop::DropArgs),
+    /// manages db itself
+    Db(db::DbArgs),
 }
 
 const RUST_LOG_ENV: &str = "RUST_LOG";
@@ -71,9 +62,7 @@ fn main() -> anyhow::Result<()> {
         FileCmd::Get(get_args) => get::get_data(get_args),
         FileCmd::Set(set_args) => set::set_data(set_args),
         FileCmd::Open(open_args) => open::open_tag(open_args),
-        FileCmd::Init(init_args) => init::init_db(init_args),
-        FileCmd::Dump(dump_args) => dump::dump_db(dump_args),
         FileCmd::Coll(coll_args) => coll::manage(coll_args),
-        FileCmd::Drop(drop_args) => drop::drop_db(drop_args),
+        FileCmd::Db(db_args) => db::manage(db_args),
     }
 }
