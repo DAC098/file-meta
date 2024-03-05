@@ -11,3 +11,8 @@ pub fn get_metadata(path: &Path) -> Result<Option<Metadata>, std::io::Error> {
         }
     }
 }
+
+#[inline]
+pub fn check_exists(path: &Path) -> Result<bool, std::io::Error> {
+    Ok(get_metadata(path)?.is_some())
+}

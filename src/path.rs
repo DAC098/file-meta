@@ -25,6 +25,30 @@ pub struct RelativePath {
 }
 
 impl RelativePath {
+    pub fn from_root(root: &Path, given: &PathBuf) -> anyhow::Result<Self> {
+        let rtn = if !given.is_absolute() {
+            given.absolutize_from(get_cwd())
+                .with_context(|| format!("failed to resolve path: {}", given.display()))?
+                .into()
+        } else {
+            given.clone()
+        };
+
+        let to_db = rtn.strip_prefix(root)
+            .ok()
+            .map(|v| v.into());
+
+        Ok(RelativePath {
+            full: rtn.into(),
+            to_db
+        })
+
+    }
+
+    pub fn full_path(&self) -> &Path {
+        &self.full
+    }
+
     pub fn to_db(&self) -> anyhow::Result<&Path> {
         if let Some(valid) = &self.to_db {
             Ok(valid)
@@ -50,25 +74,6 @@ impl<'a> RelativePathList<'a> {
             root
         }
     }
-
-    fn get_path(&self, path: &PathBuf) -> anyhow::Result<RelativePath> {
-        let rtn = if !path.is_absolute() {
-            path.absolutize_from(get_cwd())
-                .with_context(|| format!("failed to resolve path: {}", path.display()))?
-                .into()
-        } else {
-            path.clone()
-        };
-
-        let to_db = rtn.strip_prefix(&self.root)
-            .ok()
-            .map(|v| v.into());
-
-        Ok(RelativePath {
-            full: rtn.into(),
-            to_db
-        })
-    }
 }
 
 impl<'a> std::iter::Iterator for RelativePathList<'a> {
@@ -79,6 +84,6 @@ impl<'a> std::iter::Iterator for RelativePathList<'a> {
             return None;
         };
 
-        Some(self.get_path(path))
+        Some(RelativePath::from_root(&self.root, path))
     }
 }

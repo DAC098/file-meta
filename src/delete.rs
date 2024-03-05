@@ -31,7 +31,7 @@ pub fn delete_data(args: DeleteArgs) -> anyhow::Result<()> {
         for (file, data) in db.inner.files {
             let full_path = root.join(&file);
 
-            if let Some(m) = fs::get_metadata(&full_path)? {
+            if fs::check_exists(&full_path)? {
                 log::info!("file {} exists", file.display());
 
                 updated.insert(file, data);
@@ -54,7 +54,7 @@ pub fn delete_data(args: DeleteArgs) -> anyhow::Result<()> {
 
         log::info!("looking for: {}", adjusted.display());
 
-        if let Some(removed) = db.inner.files.remove(adjusted) {
+        if let Some(_removed) = db.inner.files.remove(adjusted) {
             log::info!("file not found in db: {}", path.display());
         } else {
             log::info!("file removed from db: {}", path.display());

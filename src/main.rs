@@ -9,8 +9,9 @@ mod db;
 
 mod get;
 mod set;
-mod open;
+mod rename;
 mod delete;
+mod open;
 mod coll;
 
 #[derive(Debug, Parser)]
@@ -35,11 +36,14 @@ enum FileCmd {
     /// updates information for the specified files
     Set(set::SetArgs),
 
-    /// attempts to open up the value of a tag
-    Open(open::OpenArgs),
+    /// renames a specified entry
+    Rename(rename::RenameArgs),
 
     /// deletes entries from the database
     Delete(delete::DeleteArgs),
+
+    /// attempts to open up the value of a tag
+    Open(open::OpenArgs),
 
     /// manages collections in the db
     Coll(coll::CollectionArgs),
@@ -68,8 +72,9 @@ fn main() -> anyhow::Result<()> {
     match args.cmd {
         FileCmd::Get(get_args) => get::get_data(get_args),
         FileCmd::Set(set_args) => set::set_data(set_args),
-        FileCmd::Open(open_args) => open::open(open_args),
+        FileCmd::Rename(rename_args) => rename::rename_data(rename_args),
         FileCmd::Delete(delete_args) => delete::delete_data(delete_args),
+        FileCmd::Open(open_args) => open::open(open_args),
         FileCmd::Coll(coll_args) => coll::manage(coll_args),
         FileCmd::Db(db_args) => db::manage(db_args),
     }
