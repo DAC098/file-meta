@@ -13,7 +13,7 @@ path-absolutize = "3"
 
 [dependencies.clap]
 version = "4"
-features = ["derive"]
+features = ["derive", "wrap_help"]
 
 [dependencies.open]
 version = "5"

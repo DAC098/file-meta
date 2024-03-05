@@ -12,6 +12,7 @@ use clap::{Args, Subcommand, ValueEnum};
 use crate::fs::get_metadata;
 use crate::tags;
 use crate::path;
+use crate::time;
 
 pub mod init;
 pub mod dump;
@@ -78,8 +79,8 @@ pub const FORMAT_LIST: [Format; 3] = [
 pub struct FileData {
     pub tags: tags::TagsMap,
     pub comment: Option<String>,
-    pub created: chrono::DateTime<chrono::Utc>,
-    pub updated: Option<chrono::DateTime<chrono::Utc>>,
+    pub created: time::DateTime,
+    pub updated: Option<time::DateTime>,
 }
 
 impl Default for FileData {
@@ -87,7 +88,7 @@ impl Default for FileData {
         FileData {
             tags: tags::TagsMap::new(),
             comment: None,
-            created: chrono::Utc::now(),
+            created: time::datetime_now(),
             updated: None,
         }
     }
