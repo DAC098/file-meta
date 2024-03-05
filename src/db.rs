@@ -277,7 +277,7 @@ impl Db {
         path::RelativePath::from_root(&self.root, &path)
     }
 
-    pub fn relative_to_db<'a>(&self, path_list: &'a Vec<PathBuf>) -> path::RelativePathList<'a> {
+    pub fn rel_to_db_list<'a>(&self, path_list: &'a Vec<PathBuf>) -> path::RelativePathList<'a> {
         path::RelativePathList::new(self.root.clone(), path_list)
     }
 }

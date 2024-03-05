@@ -18,7 +18,7 @@ pub fn update_coll(args: UpdateArgs) -> anyhow::Result<()> {
     let mut db = db::Db::cwd_load()?;
 
     {
-        let path_iter = db.relative_to_db(&args.files);
+        let path_iter = db.rel_to_db_list(&args.files);
 
         let Some(coll) = db.inner.collections.get_mut(&args.name) else {
             println!("collection not found");

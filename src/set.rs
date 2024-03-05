@@ -116,7 +116,7 @@ fn update_tags(args: &SetArgs, tags: &mut tags::TagsMap) {
 pub fn set_data(args: SetArgs) -> anyhow::Result<()> {
     let mut db = db::Db::cwd_load()?;
 
-    for path_result in db.relative_to_db(&args.files) {
+    for path_result in db.rel_to_db_list(&args.files) {
         let Some(path) = logging::log_result(path_result) else {
             continue;
         };

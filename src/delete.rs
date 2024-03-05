@@ -43,7 +43,7 @@ pub fn delete_data(args: DeleteArgs) -> anyhow::Result<()> {
         db.inner.files = updated;
     }
 
-    for path_result in db.relative_to_db(&args.files) {
+    for path_result in db.rel_to_db_list(&args.files) {
         let Some(path) = logging::log_result(path_result) else {
             continue;
         };

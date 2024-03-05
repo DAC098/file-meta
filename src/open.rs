@@ -65,7 +65,7 @@ pub fn open(args: OpenArgs) -> anyhow::Result<()> {
             }
         }
     } else if let Some(tag) = &args.tag {
-        for path_result in db.relative_to_db(&args.files) {
+        for path_result in db.rel_to_db_list(&args.files) {
             let Some(path) = logging::log_result(path_result) else {
                 continue;
             };
