@@ -32,6 +32,10 @@ impl RelativePath {
             Err(anyhow::anyhow!("file and db do not share a common root: {}", self.full.display()))
         }
     }
+
+    pub fn display(&self) -> std::path::Display<'_> {
+        self.full.display()
+    }
 }
 
 pub struct RelativePathList<'a> {
@@ -49,15 +53,14 @@ impl<'a> RelativePathList<'a> {
 
     fn get_path(&self, path: &PathBuf) -> anyhow::Result<RelativePath> {
         let rtn = if !path.is_absolute() {
-            let resolved = path.absolutize_from(get_cwd())
-                .with_context(|| format!("failed to resolve path: {}", path.display()))?;
-
-            resolved.into()
+            path.absolutize_from(get_cwd())
+                .with_context(|| format!("failed to resolve path: {}", path.display()))?
+                .into()
         } else {
             path.clone()
         };
 
-        let to_db = path.strip_prefix(&self.root)
+        let to_db = rtn.strip_prefix(&self.root)
             .ok()
             .map(|v| v.into());
 

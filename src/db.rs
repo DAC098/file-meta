@@ -269,6 +269,10 @@ impl Db {
         &self.root
     }
 
+    pub fn root_copy(&self) -> Box<Path> {
+        self.root.clone()
+    }
+
     pub fn relative_to_db<'a>(&self, path_list: &'a Vec<PathBuf>) -> path::RelativePathList<'a> {
         path::RelativePathList::new(self.root.clone(), path_list)
     }
