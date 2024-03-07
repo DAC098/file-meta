@@ -82,14 +82,14 @@ pub struct SetArgs {
     #[arg(long, conflicts_with("comment"))]
     drop_comment: bool,
 
-    /// sets tags to the db itself if no file item is desired
-    #[arg(long)]
-    db: bool,
+    /// sets tags to the db itself
+    #[arg(long = "self")]
+    self_: bool,
 
     /// the file(s) to update data for
     #[arg(
         trailing_var_arg(true),
-        required_unless_present("db")
+        required_unless_present("self_")
     )]
     files: Vec<PathBuf>,
 }
@@ -123,7 +123,7 @@ fn update_tags(args: &SetArgs, tags: &mut tags::TagsMap) {
 pub fn set_data(args: SetArgs) -> anyhow::Result<()> {
     let mut db = db::Db::cwd_load()?;
 
-    if args.db {
+    if args.self_ {
         update_tags(&args, &mut db.inner.tags);
 
         if args.drop_comment {

@@ -18,11 +18,14 @@ pub struct GetArgs {
     no_comment: bool,
 
     /// retrieves data from the db itself
-    #[arg(long)]
-    db: bool,
+    #[arg(long = "self")]
+    self_: bool,
 
     /// the file(s) to retrieve data for
-    #[arg(trailing_var_arg(true), required_unless_present("db"))]
+    #[arg(
+        trailing_var_arg(true),
+        required_unless_present("self_")
+    )]
     files: Vec<PathBuf>,
 }
 
@@ -30,7 +33,7 @@ pub fn get_data(args: GetArgs) -> anyhow::Result<()> {
     let mut files_len = args.files.len();
     let db = db::Db::cwd_load()?;
 
-    if args.db {
+    if args.self_ {
         files_len += 1;
 
         if files_len > 1 {

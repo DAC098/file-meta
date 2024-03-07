@@ -9,16 +9,16 @@ use crate::db;
 
 #[derive(Debug, Args)]
 pub struct OpenArgs {
-    /// name of the collection to open
-    #[arg(long)]
-    coll: Option<String>,
-
     /// attempts to open up a tag in the db itself
     #[arg(long, requires("tag"))]
-    db: bool,
+    self_: bool,
+
+    /// name of the collection to open
+    #[arg(short, long)]
+    coll: Option<String>,
 
     /// the desired tag to open
-    #[arg(long)]
+    #[arg(short, long)]
     tag: Option<String>,
 
     /// the list of files to open
@@ -26,7 +26,7 @@ pub struct OpenArgs {
     /// if a collection has been specified then a list of files is not needed.
     #[arg(
         trailing_var_arg = true,
-        required_unless_present_any(["coll", "db"])
+        required_unless_present_any(["coll", "self_"])
     )]
     files: Vec<PathBuf>,
 }
@@ -34,7 +34,7 @@ pub struct OpenArgs {
 pub fn open(args: OpenArgs) -> anyhow::Result<()> {
     let db = db::Db::cwd_load()?;
 
-    if args.db {
+    if args.self_ {
         let tag = args.tag.as_ref().unwrap();
 
         if let Some(value) = retrieve_tag_value(db.root(), tag, &db.inner.tags) {
