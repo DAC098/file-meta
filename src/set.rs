@@ -61,9 +61,8 @@ pub struct SetArgs {
 
     /// remove a tag from the files
     ///
-    /// this will remove a file from the existing list of tags for the
+    /// this will remove a tag from the existing list of tags for the
     /// specified files. if the tag is not found then nothing will happen
-    /// update files with new comment
     #[arg(short = 'd', long, conflicts_with_all(["drop_all"]))]
     drop: Vec<String>,
 

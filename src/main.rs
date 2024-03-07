@@ -52,7 +52,7 @@ enum Cmd {
     /// deletes entries from the database
     Delete(delete::DeleteArgs),
 
-    /// attempts to open up the value of a tag
+    /// attempts to open up the value of a tag or file from a collection
     Open(open::OpenArgs),
 
     /// manages collections in the db
