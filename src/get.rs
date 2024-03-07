@@ -17,14 +17,36 @@ pub struct GetArgs {
     #[arg(long, conflicts_with("no_tags"))]
     no_comment: bool,
 
+    /// retrieves data from the db itself
+    #[arg(long)]
+    db: bool,
+
     /// the file(s) to retrieve data for
-    #[arg(trailing_var_arg = true, num_args(1..))]
+    #[arg(trailing_var_arg(true), required_unless_present("db"))]
     files: Vec<PathBuf>,
 }
 
 pub fn get_data(args: GetArgs) -> anyhow::Result<()> {
-    let files_len = args.files.len();
+    let mut files_len = args.files.len();
     let db = db::Db::cwd_load()?;
+
+    if args.db {
+        files_len += 1;
+
+        if files_len > 1 {
+            println!("{}", db.root().display());
+        }
+
+        if !args.no_tags {
+            print_tags(&db.inner.tags);
+        }
+
+        if !args.no_comment {
+            if let Some(comment) = &db.inner.comment {
+                println!("comment: {}", comment);
+            }
+        }
+    }
 
     for path_result in db.rel_to_db_list(&args.files) {
         let Some(path) = logging::log_result(path_result) else {

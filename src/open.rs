@@ -13,6 +13,10 @@ pub struct OpenArgs {
     #[arg(long)]
     coll: Option<String>,
 
+    /// attempts to open up a tag in the db itself
+    #[arg(long, requires("tag"))]
+    db: bool,
+
     /// the desired tag to open
     #[arg(long)]
     tag: Option<String>,
@@ -22,13 +26,21 @@ pub struct OpenArgs {
     /// if a collection has been specified then a list of files is not needed.
     #[arg(
         trailing_var_arg = true,
-        required_unless_present("coll")
+        required_unless_present_any(["coll", "db"])
     )]
     files: Vec<PathBuf>,
 }
 
 pub fn open(args: OpenArgs) -> anyhow::Result<()> {
     let db = db::Db::cwd_load()?;
+
+    if args.db {
+        let tag = args.tag.as_ref().unwrap();
+
+        if let Some(value) = retrieve_tag_value(db.root(), tag, &db.inner.tags) {
+            open_tag(db.root(), tag, value);
+        }
+    }
 
     if let Some(name) = &args.coll {
         let Some(coll) = db.inner.collections.get(name) else {
@@ -43,17 +55,9 @@ pub fn open(args: OpenArgs) -> anyhow::Result<()> {
                     continue;
                 };
 
-                let Some(maybe) = existing.tags.get(tag) else {
-                    log::info!("{} {} does not exist", file.display(), tag);
-                    continue;
-                };
-
-                let Some(value) = maybe else {
-                    log::info!("{} {} does not exist", file.display(), tag);
-                    continue;
-                };
-
-                open_tag(file, tag, value);
+                if let Some(value) = retrieve_tag_value(file, tag, &existing.tags) {
+                    open_tag(file, tag, value);
+                }
             } else {
                 let full_path = db.root().join(file);
 
@@ -79,21 +83,27 @@ pub fn open(args: OpenArgs) -> anyhow::Result<()> {
                 continue;
             };
 
-            let Some(maybe) = existing.tags.get(tag) else {
-                log::info!("{} {} does not exist", adjusted.display(), tag);
-                continue;
-            };
-
-            let Some(value) = maybe else {
-                log::info!("{} {} has no value", adjusted.display(), tag);
-                continue;
-            };
-
-            open_tag(adjusted, tag, value);
+            if let Some(value) = retrieve_tag_value(adjusted, tag, &existing.tags) {
+                open_tag(adjusted, tag, value);
+            }
         }
     }
 
     Ok(())
+}
+
+fn retrieve_tag_value<'a>(file: &Path, tag: &str, map: &'a tags::TagsMap) -> Option<&'a tags::TagValue> {
+    let Some(maybe) = map.get(tag) else {
+        log::info!("{} {} does not exist", file.display(), tag);
+        return None;
+    };
+
+    let Some(value) = maybe else {
+        log::info!("{} {} has no value", file.display(), tag);
+        return None;
+    };
+
+    Some(value)
 }
 
 fn open_tag(file: &Path, tag: &str, value: &tags::TagValue) {

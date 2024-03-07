@@ -98,6 +98,8 @@ impl Default for FileData {
 pub struct Inner {
     pub files: BTreeMap<FilePath, FileData>,
     pub collections: BTreeMap<String, BTreeSet<FilePath>>,
+    pub tags: tags::TagsMap,
+    pub comment: Option<String>,
 }
 
 impl Default for Inner {
@@ -105,6 +107,8 @@ impl Default for Inner {
         Inner {
             files: BTreeMap::new(),
             collections: BTreeMap::new(),
+            tags: tags::TagsMap::new(),
+            comment: None,
         }
     }
 }
