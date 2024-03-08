@@ -31,34 +31,34 @@ pub struct GetArgs {
 
 pub fn get_data(args: GetArgs) -> anyhow::Result<()> {
     let mut files_len = args.files.len();
-    let db = db::Db::cwd_load()?;
+    let context = db::Context::cwd_load()?;
 
     if args.self_ {
         files_len += 1;
 
         if files_len > 1 {
-            println!("{}", db.root().display());
+            println!("{}", context.root().display());
         }
 
         if !args.no_tags {
-            print_tags(&db.inner.tags);
+            print_tags(&context.db.tags);
         }
 
         if !args.no_comment {
-            if let Some(comment) = &db.inner.comment {
+            if let Some(comment) = &context.db.comment {
                 println!("comment: {}", comment);
             }
         }
     }
 
-    for path_result in db.rel_to_db_list(&args.files) {
+    for path_result in context.rel_to_db_list(&args.files) {
         let Some(rel_path) = logging::log_result(path_result) else {
             continue;
         };
 
         let (_path, db_entry) = rel_path.into();
 
-        let Some(existing) = db.inner.files.get(&db_entry) else {
+        let Some(existing) = context.db.files.get(&db_entry) else {
             continue;
         };
 

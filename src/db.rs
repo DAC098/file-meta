@@ -6,7 +6,7 @@ use std::ffi::OsStr;
 use std::fs::OpenOptions;
 
 use serde::{Serialize, Deserialize};
-use anyhow::Context;
+use anyhow::Context as _;
 use clap::{Args, Subcommand, ValueEnum};
 
 use crate::fs::get_metadata;
@@ -94,16 +94,16 @@ impl Default for FileData {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Inner {
+pub struct Db {
     pub files: BTreeMap<Box<str>, FileData>,
     pub collections: BTreeMap<String, BTreeSet<Box<str>>>,
     pub tags: tags::TagsMap,
     pub comment: Option<String>,
 }
 
-impl Default for Inner {
+impl Default for Db {
     fn default() -> Self {
-        Inner {
+        Db {
             files: BTreeMap::new(),
             collections: BTreeMap::new(),
             tags: tags::TagsMap::new(),
@@ -113,27 +113,31 @@ impl Default for Inner {
 }
 
 #[derive(Debug)]
-pub struct Db {
+pub struct Context {
     format: Format,
-    pub inner: Inner,
+    pub db: Db,
     path: DbPath,
     root: RootPath,
 }
 
-impl Db {
-    pub fn new<P>(path: P, format: Format) -> Self
+impl Context {
+    pub fn create<P>(path: P, format: Format) -> anyhow::Result<Self>
     where
-        P: Into<DbPath>,
+        P: Into<DbPath>
     {
         let path = path.into();
         let root = Self::get_root(&path);
 
-        Db {
+        let rtn = Context {
             format,
-            inner: Inner::default(),
+            db: Db::default(),
             path,
-            root,
-        }
+            root
+        };
+
+        rtn.write_file(true)?;
+
+        Ok(rtn)
     }
 
     fn get_root(path: &Path) -> RootPath {
@@ -181,11 +185,8 @@ impl Db {
         Ok(None)
     }
 
-    fn read_file<P>(path: P, format: Format) -> anyhow::Result<Self>
-    where
-        P: Into<Box<Path>>
-    {
-        let path = path.into();
+    fn read_file(path: Box<Path>, format: Format) -> anyhow::Result<Self> {
+        log::info!("reading {}", path.display());
 
         let file = OpenOptions::new()
             .read(true)
@@ -195,7 +196,7 @@ impl Db {
 
         let start = std::time::Instant::now();
 
-        let inner = match &format {
+        let db = match &format {
             Format::JsonPretty |
             Format::Json => serde_json::from_reader(reader)
                 .with_context(|| format!("failed deserializing db json: {}", path.display()))?,
@@ -207,21 +208,12 @@ impl Db {
 
         let root = Self::get_root(&path);
 
-        log::debug!("loaded {}", path.display());
-
-        Ok(Db {
+        Ok(Context {
             format,
-            inner,
+            db,
             path,
             root,
         })
-    }
-
-    pub fn load<P>(path: P, format: Format) -> anyhow::Result<Self>
-    where
-        P: Into<Box<Path>>
-    {
-        Self::read_file(path, format)
     }
 
     pub fn cwd_load() -> anyhow::Result<Self> {
@@ -229,10 +221,16 @@ impl Db {
             return Err(anyhow::anyhow!("no db found"));
         };
 
-        Self::load(path, format)
+        Self::read_file(path, format)
     }
 
     fn write_file(&self, create: bool) -> anyhow::Result<()> {
+        if create {
+            log::info!("creating {}", self.path.display());
+        } else {
+            log::info!("writing {}", self.path.display());
+        }
+
         let file = OpenOptions::new()
             .write(true)
             .truncate(true)
@@ -244,21 +242,17 @@ impl Db {
         let start = std::time::Instant::now();
 
         match &self.format {
-            Format::JsonPretty => serde_json::to_writer_pretty(writer, &self.inner)
+            Format::JsonPretty => serde_json::to_writer_pretty(writer, &self.db)
                 .with_context(|| format!("failed serializing db json: {}", self.path.display()))?,
-            Format::Json => serde_json::to_writer(writer, &self.inner)
+            Format::Json => serde_json::to_writer(writer, &self.db)
                 .with_context(|| format!("failed serializing db json: {}", self.path.display()))?,
-            Format::Binary => bincode::serialize_into(writer, &self.inner)
+            Format::Binary => bincode::serialize_into(writer, &self.db)
                 .with_context(|| format!("failed serializing db binary: {}", self.path.display()))?
         }
 
         log::info!("db save time: {:?}", start.elapsed());
 
         Ok(())
-    }
-
-    pub fn create(&self) -> anyhow::Result<()> {
-        self.write_file(true)
     }
 
     pub fn save(&self) -> anyhow::Result<()> {

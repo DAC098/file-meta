@@ -13,10 +13,10 @@ pub struct ViewArgs {
 }
 
 pub fn view_coll(args: ViewArgs) -> anyhow::Result<()> {
-    let db_data = db::Db::cwd_load()?;
+    let context = db::Context::cwd_load()?;
 
     if let Some(lookup) = args.name {
-        let Some(files) = db_data.inner.collections.get(&lookup) else {
+        let Some(files) = context.db.collections.get(&lookup) else {
             println!("collection not found");
             return Ok(());
         };
@@ -29,7 +29,7 @@ pub fn view_coll(args: ViewArgs) -> anyhow::Result<()> {
             }
         }
     } else {
-        for (name, files) in &db_data.inner.collections {
+        for (name, files) in &context.db.collections {
             println!("{}: {} files", name, files.len());
 
             if args.files {

@@ -13,14 +13,14 @@ pub struct DeleteArgs {
 }
 
 pub fn delete_coll(args: DeleteArgs) -> anyhow::Result<()> {
-    let mut db_data = db::Db::cwd_load()?;
+    let mut context = db::Context::cwd_load()?;
 
-    let Some(files) = db_data.inner.collections.remove(&args.name) else {
+    let Some(files) = context.db.collections.remove(&args.name) else {
         println!("collection not found");
         return Ok(());
     };
 
-    db_data.save()?;
+    context.save()?;
 
     if args.files {
         println!("{} files", files.len());

@@ -11,16 +11,16 @@ pub struct CreateArgs {
 }
 
 pub fn create_coll(args: CreateArgs) -> anyhow::Result<()> {
-    let mut db_data = db::Db::cwd_load()?;
+    let mut context = db::Context::cwd_load()?;
 
-    if db_data.inner.collections.contains_key(&args.name) {
+    if context.db.collections.contains_key(&args.name) {
         println!("the specified collection already exists");
         return Ok(());
     }
 
-    db_data.inner.collections.insert(args.name, BTreeSet::new());
+    context.db.collections.insert(args.name, BTreeSet::new());
 
-    db_data.save()?;
+    context.save()?;
 
     Ok(())
 }

@@ -7,14 +7,14 @@ use crate::db;
 pub struct DropArgs {}
 
 pub fn drop_db(_args: DropArgs) -> anyhow::Result<()> {
-    let db = db::Db::cwd_load()?;
+    let context = db::Context::cwd_load()?;
 
-    log::info!("dropping db file: {}", db.path().display());
+    log::info!("dropping db file: {}", context.path().display());
 
-    std::fs::remove_file(db.path())
+    std::fs::remove_file(context.path())
         .context("failed to remove db file")?;
 
-    let dir = db.path()
+    let dir = context.path()
         .parent()
         .unwrap();
 

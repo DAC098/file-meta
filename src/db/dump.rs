@@ -15,21 +15,21 @@ pub struct DumpArgs {
 }
 
 pub fn dump_db(args: DumpArgs) -> anyhow::Result<()> {
-    let db_data = db::Db::cwd_load()?;
+    let context = db::Context::cwd_load()?;
 
     if args.json {
         if args.pretty {
-            serde_json::to_writer_pretty(std::io::stdout(), &db_data.inner)
+            serde_json::to_writer_pretty(std::io::stdout(), &context.db)
                 .context("failed writing db to output")?;
         } else {
-            serde_json::to_writer(std::io::stdout(), &db_data.inner)
+            serde_json::to_writer(std::io::stdout(), &context.db)
                 .context("failed writing db to output")?;
         }
     } else {
         if args.pretty {
-            println!("{:#?}", db_data.inner);
+            println!("{:#?}", context.db);
         } else {
-            println!("{:?}", db_data.inner);
+            println!("{:?}", context.db);
         }
     }
 

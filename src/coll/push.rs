@@ -16,10 +16,10 @@ pub struct PushArgs {
 }
 
 pub fn push_coll(args: PushArgs) -> anyhow::Result<()> {
-    let mut db = db::Db::cwd_load()?;
-    let files_iter = db.rel_to_db_list(&args.files);
+    let mut context = db::Context::cwd_load()?;
+    let files_iter = context.rel_to_db_list(&args.files);
 
-    let Some(coll) = db.inner.collections.get_mut(&args.name) else {
+    let Some(coll) = context.db.collections.get_mut(&args.name) else {
         println!("collection not found");
         return Ok(());
     };
@@ -34,7 +34,7 @@ pub fn push_coll(args: PushArgs) -> anyhow::Result<()> {
         coll.insert(db_entry);
     }
 
-    db.save()?;
+    context.save()?;
 
     Ok(())
 }

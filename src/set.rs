@@ -120,26 +120,26 @@ fn update_tags(args: &SetArgs, tags: &mut tags::TagsMap) {
 }
 
 pub fn set_data(args: SetArgs) -> anyhow::Result<()> {
-    let mut db = db::Db::cwd_load()?;
+    let mut context = db::Context::cwd_load()?;
 
     if args.self_ {
-        update_tags(&args, &mut db.inner.tags);
+        update_tags(&args, &mut context.db.tags);
 
         if args.drop_comment {
-            db.inner.comment = None;
+            context.db.comment = None;
         } else if let Some(comment) = &args.comment {
-            db.inner.comment = Some(comment.clone());
+            context.db.comment = Some(comment.clone());
         }
     }
 
-    for path_result in db.rel_to_db_list(&args.files) {
+    for path_result in context.rel_to_db_list(&args.files) {
         let Some(rel_path) = logging::log_result(path_result) else {
             continue;
         };
 
         let (_path, db_entry) = rel_path.into();
 
-        if let Some(existing) = db.inner.files.get_mut(&db_entry) {
+        if let Some(existing) = context.db.files.get_mut(&db_entry) {
             log::info!("updating \"{}\"", db_entry);
 
             update_tags(&args, &mut existing.tags);
@@ -164,11 +164,11 @@ pub fn set_data(args: SetArgs) -> anyhow::Result<()> {
                 data.comment = Some(comment.clone());
             }
 
-            db.inner.files.insert(db_entry, data);
+            context.db.files.insert(db_entry, data);
         }
     }
 
-    db.save()?;
+    context.save()?;
 
     Ok(())
 }

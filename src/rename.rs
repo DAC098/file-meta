@@ -19,12 +19,12 @@ pub struct RenameArgs {
 }
 
 pub fn rename_data(args: RenameArgs) -> anyhow::Result<()> {
-    let mut db = db::Db::cwd_load()?;
+    let mut context = db::Context::cwd_load()?;
 
-    let (curr_path, curr_entry) = db.rel_to_db(args.current)?.into();
-    let (rename_path, rename_entry) = db.rel_to_db(args.renamed)?.into();
+    let (curr_path, curr_entry) = context.rel_to_db(args.current)?.into();
+    let (rename_path, rename_entry) = context.rel_to_db(args.renamed)?.into();
 
-    let Some(found) = db.inner.files.remove(&curr_entry) else {
+    let Some(found) = context.db.files.remove(&curr_entry) else {
         println!("current not found in db: {}", curr_path.display());
         return Ok(());
     };
@@ -34,13 +34,13 @@ pub fn rename_data(args: RenameArgs) -> anyhow::Result<()> {
         return Ok(());
     }
 
-    if let Some(_exists) = db.inner.files.get_mut(&rename_entry) {
+    if let Some(_exists) = context.db.files.get_mut(&rename_entry) {
         println!("renamed already exists in db: {}", rename_entry);
     } else {
-        db.inner.files.insert(rename_entry, found);
+        context.db.files.insert(rename_entry, found);
     }
 
-    db.save()?;
+    context.save()?;
 
     Ok(())
 }

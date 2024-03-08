@@ -53,9 +53,8 @@ pub fn init_db(args: InitArgs) -> anyhow::Result<()> {
 
     let db_file = fsm_dir.join(args.format.get_file_name_os());
 
-    let db = db::Db::new(db_file, args.format);
-
-    db.create().context("failed to save new db instance")?;
+    db::Context::create(db_file, args.format)
+        .context("failed to save new db instance")?;
 
     Ok(())
 }

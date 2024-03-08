@@ -32,25 +32,25 @@ pub struct OpenArgs {
 }
 
 pub fn open(args: OpenArgs) -> anyhow::Result<()> {
-    let db = db::Db::cwd_load()?;
+    let context = db::Context::cwd_load()?;
 
     if args.self_ {
         let tag = args.tag.as_ref().unwrap();
 
-        if let Some(value) = retrieve_tag_value("ROOT", tag, &db.inner.tags) {
+        if let Some(value) = retrieve_tag_value("ROOT", tag, &context.db.tags) {
             open_tag("ROOT", tag, value);
         }
     }
 
     if let Some(name) = &args.coll {
-        let Some(coll) = db.inner.collections.get(name) else {
+        let Some(coll) = context.db.collections.get(name) else {
             println!("collection not found");
             return Ok(());
         };
 
         for file in coll {
             if let Some(tag) = &args.tag {
-                let Some(existing) = db.inner.files.get(file) else {
+                let Some(existing) = context.db.files.get(file) else {
                     log::info!("file not found in db: {}", file);
                     continue;
                 };
@@ -59,7 +59,7 @@ pub fn open(args: OpenArgs) -> anyhow::Result<()> {
                     open_tag(file, tag, value);
                 }
             } else {
-                let full_path = db.root().join(&**file);
+                let full_path = context.root().join(&**file);
 
                 log::info!("opening file: {}", full_path.display());
 
@@ -69,14 +69,14 @@ pub fn open(args: OpenArgs) -> anyhow::Result<()> {
             }
         }
     } else if let Some(tag) = &args.tag {
-        for path_result in db.rel_to_db_list(&args.files) {
+        for path_result in context.rel_to_db_list(&args.files) {
             let Some(rel_path) = logging::log_result(path_result) else {
                 continue;
             };
 
             let (_path, db_entry) = rel_path.into();
 
-            let Some(existing) = db.inner.files.get(&db_entry) else {
+            let Some(existing) = context.db.files.get(&db_entry) else {
                 log::info!("{} {} does not exist", db_entry, tag);
                 continue;
             };
