@@ -28,7 +28,7 @@ pub fn init_db(args: InitArgs) -> anyhow::Result<()> {
         log::info!("checking for existing db");
 
         for format in db::FORMAT_LIST {
-            let db_file = fsm_dir.join(format.get_file_name_os());
+            let db_file = fsm_dir.join(format.file_name());
 
             let Some(metadata) = fs::get_metadata(&db_file)
                 .context("io error when checking for db file")? else {
@@ -51,7 +51,7 @@ pub fn init_db(args: InitArgs) -> anyhow::Result<()> {
 
     log::info!("creating db file");
 
-    let db_file = fsm_dir.join(args.format.get_file_name_os());
+    let db_file = fsm_dir.join(args.format.file_name());
 
     db::Context::create(db_file, args.format)
         .context("failed to save new db instance")?;

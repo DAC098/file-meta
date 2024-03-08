@@ -59,7 +59,7 @@ pub enum Format {
 }
 
 impl Format {
-    pub fn get_file_name_os(&self) -> &OsStr {
+    pub fn file_name(&self) -> &OsStr {
         match self {
             Format::JsonPretty => OsStr::new(DB_PRETTY_JSON_NAME),
             Format::Json => OsStr::new(DB_JSON_NAME),
@@ -167,7 +167,7 @@ impl Context {
             }
 
             for format in &FORMAT_LIST {
-                let db_file = fsm_dir.join(format.get_file_name_os());
+                let db_file = fsm_dir.join(format.file_name());
 
                 let Some(metadata) = get_metadata(&db_file)
                     .context("io error when checking for db file")? else {
