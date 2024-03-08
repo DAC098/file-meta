@@ -3,6 +3,7 @@ use anyhow::Context;
 
 use crate::fs;
 use crate::db;
+use crate::path;
 
 #[derive(Debug, Args)]
 pub struct InitArgs {
@@ -12,10 +13,7 @@ pub struct InitArgs {
 }
 
 pub fn init_db(args: InitArgs) -> anyhow::Result<()> {
-    let cwd = std::env::current_dir()
-        .context("failed to retrieve current directory")?;
-
-    let fsm_dir = cwd.join(".fsm");
+    let fsm_dir = path::get_cwd().join(".fsm");
 
     if let Some(fsm_metadata) = fs::get_metadata(&fsm_dir)
         .context("failed to retrieve metadata for .fsm directory")? {
