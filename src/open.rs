@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use clap::Args;
 use anyhow::Context;
@@ -37,8 +37,8 @@ pub fn open(args: OpenArgs) -> anyhow::Result<()> {
     if args.self_ {
         let tag = args.tag.as_ref().unwrap();
 
-        if let Some(value) = retrieve_tag_value(db.root(), tag, &db.inner.tags) {
-            open_tag(db.root(), tag, value);
+        if let Some(value) = retrieve_tag_value("ROOT", tag, &db.inner.tags) {
+            open_tag("ROOT", tag, value);
         }
     }
 
@@ -51,7 +51,7 @@ pub fn open(args: OpenArgs) -> anyhow::Result<()> {
         for file in coll {
             if let Some(tag) = &args.tag {
                 let Some(existing) = db.inner.files.get(file) else {
-                    log::info!("file not found in db: {}", file.display());
+                    log::info!("file not found in db: {}", file);
                     continue;
                 };
 
@@ -59,7 +59,7 @@ pub fn open(args: OpenArgs) -> anyhow::Result<()> {
                     open_tag(file, tag, value);
                 }
             } else {
-                let full_path = db.root().join(file);
+                let full_path = db.root().join(&**file);
 
                 log::info!("opening file: {}", full_path.display());
 
@@ -70,21 +70,19 @@ pub fn open(args: OpenArgs) -> anyhow::Result<()> {
         }
     } else if let Some(tag) = &args.tag {
         for path_result in db.rel_to_db_list(&args.files) {
-            let Some(path) = logging::log_result(path_result) else {
+            let Some(rel_path) = logging::log_result(path_result) else {
                 continue;
             };
 
-            let Some(adjusted) = logging::log_result(path.to_db()) else {
+            let (_path, db_entry) = rel_path.into();
+
+            let Some(existing) = db.inner.files.get(&db_entry) else {
+                log::info!("{} {} does not exist", db_entry, tag);
                 continue;
             };
 
-            let Some(existing) = db.inner.files.get(adjusted) else {
-                log::info!("{} {} does not exist", adjusted.display(), tag);
-                continue;
-            };
-
-            if let Some(value) = retrieve_tag_value(adjusted, tag, &existing.tags) {
-                open_tag(adjusted, tag, value);
+            if let Some(value) = retrieve_tag_value(&db_entry, tag, &existing.tags) {
+                open_tag(&db_entry, tag, value);
             }
         }
     }
@@ -92,30 +90,30 @@ pub fn open(args: OpenArgs) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn retrieve_tag_value<'a>(file: &Path, tag: &str, map: &'a tags::TagsMap) -> Option<&'a tags::TagValue> {
+fn retrieve_tag_value<'a>(file: &str, tag: &str, map: &'a tags::TagsMap) -> Option<&'a tags::TagValue> {
     let Some(maybe) = map.get(tag) else {
-        log::info!("{} {} does not exist", file.display(), tag);
+        log::info!("{} {} does not exist", file, tag);
         return None;
     };
 
     let Some(value) = maybe else {
-        log::info!("{} {} has no value", file.display(), tag);
+        log::info!("{} {} has no value", file, tag);
         return None;
     };
 
     Some(value)
 }
 
-fn open_tag(file: &Path, tag: &str, value: &tags::TagValue) {
+fn open_tag(file: &str, tag: &str, value: &tags::TagValue) {
     let url = match value {
         tags::TagValue::Url(url) => url.to_string(),
         _ => {
-            log::info!("{} {} is not a valid url", file.display(), tag);
+            log::info!("{} {} is not a valid url", file, tag);
             return;
         }
     };
 
-    log::info!("opening tag \"{}\" for file \"{}\"", tag, file.display());
+    log::info!("opening tag \"{}\" for file \"{}\"", tag, file);
 
     if let Err(err) = open::that_detached(&url).context("failed to open url") {
         println!("{}", err);

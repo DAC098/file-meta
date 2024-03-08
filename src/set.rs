@@ -133,16 +133,14 @@ pub fn set_data(args: SetArgs) -> anyhow::Result<()> {
     }
 
     for path_result in db.rel_to_db_list(&args.files) {
-        let Some(path) = logging::log_result(path_result) else {
+        let Some(rel_path) = logging::log_result(path_result) else {
             continue;
         };
 
-        let Some(adjusted) = logging::log_result(path.to_db()) else {
-            continue;
-        };
+        let (_path, db_entry) = rel_path.into();
 
-        if let Some(existing) = db.inner.files.get_mut(adjusted) {
-            log::info!("updating \"{}\"", adjusted.display());
+        if let Some(existing) = db.inner.files.get_mut(&db_entry) {
+            log::info!("updating \"{}\"", db_entry);
 
             update_tags(&args, &mut existing.tags);
 
@@ -154,7 +152,7 @@ pub fn set_data(args: SetArgs) -> anyhow::Result<()> {
 
             existing.updated = Some(chrono::Utc::now());
         } else {
-            log::info!("adding \"{}\"", adjusted.display());
+            log::info!("adding \"{}\"", db_entry);
 
             let mut data = db::FileData::default();
 
@@ -166,7 +164,7 @@ pub fn set_data(args: SetArgs) -> anyhow::Result<()> {
                 data.comment = Some(comment.clone());
             }
 
-            db.inner.files.insert(adjusted.into(), data);
+            db.inner.files.insert(db_entry, data);
         }
     }
 

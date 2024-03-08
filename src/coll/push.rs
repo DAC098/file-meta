@@ -25,15 +25,13 @@ pub fn push_coll(args: PushArgs) -> anyhow::Result<()> {
     };
 
     for path_result in files_iter {
-        let Some(path) = logging::log_result(path_result) else {
+        let Some(rel_path) = logging::log_result(path_result) else {
             continue;
         };
 
-        let Some(adjusted) = logging::log_result(path.to_db()) else {
-            continue;
-        };
+        let (_path, db_entry) = rel_path.into();
 
-        coll.insert(adjusted.into());
+        coll.insert(db_entry);
     }
 
     db.save()?;

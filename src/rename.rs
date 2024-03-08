@@ -20,26 +20,24 @@ pub struct RenameArgs {
 
 pub fn rename_data(args: RenameArgs) -> anyhow::Result<()> {
     let mut db = db::Db::cwd_load()?;
-    let current = db.rel_to_db(args.current)?;
-    let current_adjusted = current.to_db()?;
 
-    let rename = db.rel_to_db(args.renamed)?;
-    let rename_adjusted = rename.to_db()?;
+    let (curr_path, curr_entry) = db.rel_to_db(args.current)?.into();
+    let (rename_path, rename_entry) = db.rel_to_db(args.renamed)?.into();
 
-    let Some(found) = db.inner.files.remove(current_adjusted) else {
-        println!("current not found in db: {}", current_adjusted.display());
+    let Some(found) = db.inner.files.remove(&curr_entry) else {
+        println!("current not found in db: {}", curr_path.display());
         return Ok(());
     };
 
-    if args.exists && !fs::check_exists(rename.full_path())? {
-        println!("the renamed path does not exist: {}", rename.display());
+    if args.exists && !fs::check_exists(&rename_path)? {
+        println!("the renamed path does not exist: {}", rename_path.display());
         return Ok(());
     }
 
-    if let Some(_exists) = db.inner.files.get_mut(rename_adjusted) {
-        println!("renamed already exists in db: {}", rename_adjusted.display());
+    if let Some(_exists) = db.inner.files.get_mut(&rename_entry) {
+        println!("renamed already exists in db: {}", rename_entry);
     } else {
-        db.inner.files.insert(rename_adjusted.into(), found);
+        db.inner.files.insert(rename_entry, found);
     }
 
     db.save()?;

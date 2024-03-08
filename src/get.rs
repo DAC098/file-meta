@@ -52,20 +52,18 @@ pub fn get_data(args: GetArgs) -> anyhow::Result<()> {
     }
 
     for path_result in db.rel_to_db_list(&args.files) {
-        let Some(path) = logging::log_result(path_result) else {
+        let Some(rel_path) = logging::log_result(path_result) else {
             continue;
         };
 
-        let Some(adjusted) = logging::log_result(path.to_db()) else {
-            continue;
-        };
+        let (_path, db_entry) = rel_path.into();
 
-        let Some(existing) = db.inner.files.get(adjusted) else {
+        let Some(existing) = db.inner.files.get(&db_entry) else {
             continue;
         };
 
         if files_len > 1 {
-            println!("{}", adjusted.display());
+            println!("{}", &db_entry);
         }
 
         if !args.no_tags {

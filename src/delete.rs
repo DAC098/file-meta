@@ -29,14 +29,14 @@ pub fn delete_data(args: DeleteArgs) -> anyhow::Result<()> {
         let mut updated = BTreeMap::new();
 
         for (file, data) in db.inner.files {
-            let full_path = root.join(&file);
+            let full_path = root.join(&*file);
 
             if fs::check_exists(&full_path)? {
-                log::info!("file {} exists", file.display());
+                log::info!("file {} exists", file);
 
                 updated.insert(file, data);
             } else {
-                log::info!("removing {}", file.display());
+                log::info!("removing {}", file);
             }
         }
 
@@ -44,20 +44,18 @@ pub fn delete_data(args: DeleteArgs) -> anyhow::Result<()> {
     }
 
     for path_result in db.rel_to_db_list(&args.files) {
-        let Some(path) = logging::log_result(path_result) else {
+        let Some(rel_path) = logging::log_result(path_result) else {
             continue;
         };
 
-        let Some(adjusted) = logging::log_result(path.to_db()) else {
-            continue;
-        };
+        let (_path, db_entry) = rel_path.into();
 
-        log::info!("looking for: {}", adjusted.display());
+        log::info!("looking for: {}", db_entry);
 
-        if let Some(_removed) = db.inner.files.remove(adjusted) {
-            log::info!("file not found in db: {}", path.display());
+        if let Some(_removed) = db.inner.files.remove(&db_entry) {
+            log::info!("file not found in db: {}", db_entry);
         } else {
-            log::info!("file removed from db: {}", path.display());
+            log::info!("file removed from db: {}", db_entry);
         }
     }
 

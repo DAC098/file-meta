@@ -26,7 +26,7 @@ pub fn delete_coll(args: DeleteArgs) -> anyhow::Result<()> {
         println!("{} files", files.len());
 
         for file in files {
-            println!("{}", file.display());
+            println!("{}", file);
         }
     }
 

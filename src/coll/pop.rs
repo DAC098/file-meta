@@ -38,14 +38,14 @@ pub fn pop_coll(args: PopArgs) -> anyhow::Result<()> {
         let mut updated = BTreeSet::new();
 
         for file in coll.iter() {
-            let full_path = root.join(file);
+            let full_path = root.join(&**file);
 
             if fs::check_exists(&full_path)? {
-                log::info!("file {} exists", file.display());
+                log::info!("file {} exists", file);
 
                 updated.insert(file.clone());
             } else {
-                log::info!("removing {}", file.display());
+                log::info!("removing {}", file);
             }
         }
 
@@ -53,15 +53,13 @@ pub fn pop_coll(args: PopArgs) -> anyhow::Result<()> {
     }
 
     for path_result in files_iter {
-        let Some(path) = logging::log_result(path_result) else {
+        let Some(rel_path) = logging::log_result(path_result) else {
             continue;
         };
 
-        let Some(adjusted) = logging::log_result(path.to_db()) else {
-            continue;
-        };
+        let (_path, db_entry) = rel_path.into();
 
-        coll.remove(adjusted);
+        coll.remove(&db_entry);
     }
 
     db.save()?;

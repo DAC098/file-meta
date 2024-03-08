@@ -25,7 +25,7 @@ pub fn view_coll(args: ViewArgs) -> anyhow::Result<()> {
 
         if args.files {
             for file in files {
-                println!("{}", file.display());
+                println!("{}", file);
             }
         }
     } else {
@@ -34,7 +34,7 @@ pub fn view_coll(args: ViewArgs) -> anyhow::Result<()> {
 
             if args.files {
                 for file in files {
-                    println!("{}", file.display());
+                    println!("{}", file);
                 }
             }
         }

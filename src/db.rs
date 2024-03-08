@@ -45,7 +45,6 @@ pub fn manage(args: DbArgs) -> anyhow::Result<()> {
 }
 
 type DbPath = Box<Path>;
-type FilePath = Box<Path>;
 type RootPath = Box<Path>;
 
 const DB_PRETTY_JSON_NAME: &str = "db.pretty.json";
@@ -96,8 +95,8 @@ impl Default for FileData {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Inner {
-    pub files: BTreeMap<FilePath, FileData>,
-    pub collections: BTreeMap<String, BTreeSet<FilePath>>,
+    pub files: BTreeMap<Box<str>, FileData>,
+    pub collections: BTreeMap<String, BTreeSet<Box<str>>>,
     pub tags: tags::TagsMap,
     pub comment: Option<String>,
 }
@@ -278,7 +277,7 @@ impl Db {
         self.root.clone()
     }
 
-    pub fn rel_to_db(&self, path: PathBuf) -> anyhow::Result<path::RelativePath> {
+    pub fn rel_to_db(&self, path: PathBuf) -> Result<path::RelativePath, path::PathError> {
         path::RelativePath::from_root(&self.root, &path)
     }
 
