@@ -17,6 +17,10 @@ pub struct GetArgs {
     #[arg(long, conflicts_with("no_tags"))]
     no_comment: bool,
 
+    /// retrieves all known data in the db
+    #[arg(long)]
+    all: bool,
+
     /// retrieves data from the db itself
     #[arg(long = "self")]
     self_: bool,
@@ -24,55 +28,99 @@ pub struct GetArgs {
     /// the file(s) to retrieve data for
     #[arg(
         trailing_var_arg(true),
-        required_unless_present("self_")
+        required_unless_present_any(["self_", "all"])
     )]
     files: Vec<PathBuf>,
 }
 
 pub fn get_data(args: GetArgs) -> anyhow::Result<()> {
-    let mut files_len = args.files.len();
     let context = db::Context::cwd_load()?;
 
-    if args.self_ {
-        files_len += 1;
+    let files_len = if args.all {
+        context.db.files.len() + 1
+    } else if args.self_ {
+        args.files.len() + 1
+    } else {
+        args.files.len()
+    };
 
-        if files_len > 1 {
-            println!("{}", context.root().display());
-        }
+    if args.self_ || args.all {
+        let mut printed_key = false;
 
         if !args.no_tags {
+            if files_len > 1 {
+                println!("-- {}", context.root().display());
+                printed_key = true;
+            }
+
             print_tags(&context.db.tags);
         }
 
         if !args.no_comment {
             if let Some(comment) = &context.db.comment {
+                if files_len > 1 && !printed_key {
+                    println!("-- {}", context.root().display());
+                }
+
                 println!("comment: {}", comment);
             }
         }
     }
 
-    for path_result in context.rel_to_db_list(&args.files) {
-        let Some(rel_path) = logging::log_result(path_result) else {
-            continue;
-        };
+    if args.all {
+        for (key, file) in &context.db.files {
+            let mut printed_key = false;
 
-        let (_path, db_entry) = rel_path.into();
+            if !args.no_tags {
+                if files_len > 1 {
+                    println!("-- {}", key);
+                    printed_key = true;
+                }
 
-        let Some(existing) = context.db.files.get(&db_entry) else {
-            continue;
-        };
+                print_tags(&file.tags);
+            }
 
-        if files_len > 1 {
-            println!("{}", &db_entry);
+            if !args.no_comment {
+                if let Some(comment) = &file.comment {
+                    if files_len > 1 && !printed_key {
+                        println!("-- {}", key);
+                    }
+
+                    println!("comment: {}", comment);
+                }
+            }
         }
+    } else {
+        for path_result in context.rel_to_db_list(&args.files) {
+            let Some(rel_path) = logging::log_result(path_result) else {
+                continue;
+            };
 
-        if !args.no_tags {
-            print_tags(&existing.tags);
-        }
+            let (_path, db_entry) = rel_path.into();
 
-        if !args.no_comment {
-            if let Some(comment) = &existing.comment {
-                println!("comment: {}", comment);
+            let Some(existing) = context.db.files.get(&db_entry) else {
+                continue;
+            };
+
+            let mut printed_key = false;
+
+            if !args.no_tags {
+                if files_len > 1 {
+                    println!("-- {}", db_entry);
+                    printed_key = true;
+                }
+
+                print_tags(&existing.tags);
+            }
+
+            if !args.no_comment {
+                if let Some(comment) = &existing.comment {
+                    if files_len > 1 && !printed_key {
+                        println!("-- {}", db_entry);
+                    }
+
+                    println!("comment: {}", comment);
+                }
             }
         }
     }
