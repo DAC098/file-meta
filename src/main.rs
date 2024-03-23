@@ -10,7 +10,7 @@ mod db;
 
 mod get;
 mod set;
-mod rename;
+mod r#move;
 mod delete;
 mod open;
 mod coll;
@@ -46,8 +46,8 @@ enum Cmd {
     /// updates information for the specified files
     Set(set::SetArgs),
 
-    /// renames a specified entry
-    Rename(rename::RenameArgs),
+    /// moves a specified entry to another
+    Move(r#move::MoveArgs),
 
     /// deletes entries from the database
     Delete(delete::DeleteArgs),
@@ -82,7 +82,7 @@ fn main() -> anyhow::Result<()> {
     match args.cmd {
         Cmd::Get(get_args) => get::get_data(get_args),
         Cmd::Set(set_args) => set::set_data(set_args),
-        Cmd::Rename(rename_args) => rename::rename_data(rename_args),
+        Cmd::Move(move_args) => r#move::move_data(move_args),
         Cmd::Delete(delete_args) => delete::delete_data(delete_args),
         Cmd::Open(open_args) => open::open(open_args),
         Cmd::Coll(coll_args) => coll::manage(coll_args),

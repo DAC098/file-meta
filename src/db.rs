@@ -74,6 +74,13 @@ pub const FORMAT_LIST: [Format; 3] = [
     Format::Binary,
 ];
 
+pub trait FileActions {
+    fn update_ts(&mut self);
+    fn take_comment(&mut self) -> Option<String>;
+    fn take_tags(&mut self) -> tags::TagsMap;
+    fn take_tags_comment(&mut self) -> (tags::TagsMap, Option<String>);
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct FileData {
     pub tags: tags::TagsMap,
@@ -93,12 +100,33 @@ impl Default for FileData {
     }
 }
 
+impl FileActions for FileData {
+    fn update_ts(&mut self) {
+        self.updated = Some(time::datetime_now());
+    }
+
+    fn take_tags(&mut self) -> tags::TagsMap {
+        std::mem::take(&mut self.tags)
+    }
+
+    fn take_comment(&mut self) -> Option<String> {
+        std::mem::take(&mut self.comment)
+    }
+
+    fn take_tags_comment(&mut self) -> (tags::TagsMap, Option<String>) {
+        (std::mem::take(&mut self.tags), std::mem::take(&mut self.comment))
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Db {
     pub files: BTreeMap<Box<str>, FileData>,
     pub collections: BTreeMap<String, BTreeSet<Box<str>>>,
     pub tags: tags::TagsMap,
     pub comment: Option<String>,
+    #[serde(default = "time::datetime_now")]
+    pub created: time::DateTime,
+    pub updated: Option<time::DateTime>,
 }
 
 impl Default for Db {
@@ -108,7 +136,27 @@ impl Default for Db {
             collections: BTreeMap::new(),
             tags: tags::TagsMap::new(),
             comment: None,
+            created: time::datetime_now(),
+            updated: None,
         }
+    }
+}
+
+impl FileActions for Db {
+    fn update_ts(&mut self) {
+        self.updated = Some(time::datetime_now());
+    }
+
+    fn take_tags(&mut self) -> tags::TagsMap {
+        std::mem::take(&mut self.tags)
+    }
+
+    fn take_comment(&mut self) -> Option<String> {
+        std::mem::take(&mut self.comment)
+    }
+
+    fn take_tags_comment(&mut self) -> (tags::TagsMap, Option<String>) {
+        (std::mem::take(&mut self.tags), std::mem::take(&mut self.comment))
     }
 }
 
