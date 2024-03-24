@@ -56,9 +56,7 @@ fn get_dst_entry<'a>(context: &'a mut db::Context, path: PathBuf, check_exists: 
     log::info!("retrieving entry: {}", dst_entry);
 
     Ok(context.db.files.entry(dst_entry)
-        .and_modify(|found| {
-            found.update_ts();
-        })
+        .and_modify(db::FileData::update_ts)
         .or_default())
 }
 

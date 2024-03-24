@@ -4,7 +4,7 @@ use clap::Args;
 
 use crate::logging;
 use crate::tags;
-use crate::db;
+use crate::db::{self, FileActions as _};
 
 #[derive(Debug, Args)]
 pub struct SetArgs {
@@ -93,6 +93,7 @@ pub struct SetArgs {
     files: Vec<PathBuf>,
 }
 
+#[inline]
 fn has_tags(args: &SetArgs) -> bool {
     !args.tag.is_empty() ||
         !args.tag_url.is_empty() ||
@@ -139,32 +140,18 @@ pub fn set_data(args: SetArgs) -> anyhow::Result<()> {
 
         let (_path, db_entry) = rel_path.into();
 
-        if let Some(existing) = context.db.files.get_mut(&db_entry) {
-            log::info!("updating \"{}\"", db_entry);
+        log::info!("retrieving entry: {}", db_entry);
 
-            update_tags(&args, &mut existing.tags);
+        let entry = context.db.files.entry(db_entry)
+            .and_modify(db::FileData::update_ts)
+            .or_default();
 
-            if args.drop_comment {
-                existing.comment = None;
-            } else if let Some(comment) = &args.comment {
-                existing.comment = Some(comment.clone());
-            }
+        update_tags(&args, &mut entry.tags);
 
-            existing.updated = Some(chrono::Utc::now());
-        } else {
-            log::info!("adding \"{}\"", db_entry);
-
-            let mut data = db::FileData::default();
-
-            update_tags(&args, &mut data.tags);
-
-            if args.drop_comment {
-                data.comment = None;
-            } else if let Some(comment) = &args.comment {
-                data.comment = Some(comment.clone());
-            }
-
-            context.db.files.insert(db_entry, data);
+        if args.drop_comment {
+            entry.comment = None;
+        } else if let Some(comment) = &args.comment {
+            entry.comment = Some(comment.clone());
         }
     }
 
