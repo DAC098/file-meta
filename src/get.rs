@@ -1,11 +1,12 @@
 use std::collections::BinaryHeap;
 use std::path::PathBuf;
+use std::fmt::Display;
 
 use clap::Args;
 
 use crate::logging;
 use crate::tags;
-use crate::db;
+use crate::db::{self, MetaContainer};
 
 #[derive(Debug, Args)]
 pub struct GetArgs {
@@ -36,59 +37,21 @@ pub struct GetArgs {
 pub fn get_data(args: GetArgs) -> anyhow::Result<()> {
     let context = db::Context::cwd_load()?;
 
-    let files_len = if args.all {
+    let print_title = if args.all {
         context.db.files.len() + 1
     } else if args.self_ {
         args.files.len() + 1
     } else {
         args.files.len()
-    };
+    } > 1;
 
     if args.self_ || args.all {
-        let mut printed_key = false;
-
-        if !args.no_tags {
-            if files_len > 1 {
-                println!("-- {}", context.root().display());
-                printed_key = true;
-            }
-
-            print_tags(&context.db.tags);
-        }
-
-        if !args.no_comment {
-            if let Some(comment) = &context.db.comment {
-                if files_len > 1 && !printed_key {
-                    println!("-- {}", context.root().display());
-                }
-
-                println!("comment: {}", comment);
-            }
-        }
+        print_data(&context.root().display(), &context.db, &args, print_title);
     }
 
     if args.all {
         for (key, file) in &context.db.files {
-            let mut printed_key = false;
-
-            if !args.no_tags {
-                if files_len > 1 {
-                    println!("-- {}", key);
-                    printed_key = true;
-                }
-
-                print_tags(&file.tags);
-            }
-
-            if !args.no_comment {
-                if let Some(comment) = &file.comment {
-                    if files_len > 1 && !printed_key {
-                        println!("-- {}", key);
-                    }
-
-                    println!("comment: {}", comment);
-                }
-            }
+            print_data(&key, file, &args, print_title);
         }
     } else {
         for path_result in context.rel_to_db_list(&args.files) {
@@ -99,33 +62,68 @@ pub fn get_data(args: GetArgs) -> anyhow::Result<()> {
             let (_path, db_entry) = rel_path.into();
 
             let Some(existing) = context.db.files.get(&db_entry) else {
+                println!("{db_entry} not found");
                 continue;
             };
 
-            let mut printed_key = false;
-
-            if !args.no_tags {
-                if files_len > 1 {
-                    println!("-- {}", db_entry);
-                    printed_key = true;
-                }
-
-                print_tags(&existing.tags);
-            }
-
-            if !args.no_comment {
-                if let Some(comment) = &existing.comment {
-                    if files_len > 1 && !printed_key {
-                        println!("-- {}", db_entry);
-                    }
-
-                    println!("comment: {}", comment);
-                }
-            }
+            print_data(&db_entry, existing, &args, print_title);
         }
     }
 
     Ok(())
+}
+
+#[inline]
+fn print_entry<E>(entry: &E)
+where
+    E: Display + ?Sized
+{
+    println!("@ {entry}");
+}
+
+fn print_data<E, M>(entry: &E, container: &M, args: &GetArgs, print_title: bool)
+where
+    M: MetaContainer,
+    E: Display + ?Sized,
+{
+    let mut printed_key = false;
+    let mut print_ts = false;
+
+    if !args.no_tags {
+        if print_title {
+            print_entry(entry);
+            printed_key = true;
+        }
+
+        print_tags(container.tags());
+        print_ts = true;
+    }
+
+    if !args.no_comment {
+        if let Some(comment) = container.comment() {
+            if print_title && !printed_key {
+                print_entry(entry);
+            }
+
+            println!("comment: {comment}");
+            print_ts = true;
+        }
+    }
+
+    if print_ts {
+        let local_offset = chrono::Local;
+
+        if let Some(updated) = container.updated() {
+            let local_updated = updated.with_timezone(&local_offset);
+
+            println!("{local_updated}");
+        } else {
+            let local_created = container.created()
+                .with_timezone(&local_offset);
+
+            println!("{local_created}");
+        }
+    }
 }
 
 fn print_tags(tags: &tags::TagsMap) {
@@ -148,7 +146,7 @@ fn print_tags(tags: &tags::TagsMap) {
     }
 
     for key in no_value.into_sorted_vec() {
-        println!("{}", key);
+        println!("{key}");
     }
 
     for key in with_value.into_sorted_vec() {
@@ -157,6 +155,6 @@ fn print_tags(tags: &tags::TagsMap) {
             .as_ref()
             .unwrap();
 
-        println!("{:>max_len$}: {}", key, value);
+        println!("{key:>max_len$}: {value}");
     }
 }

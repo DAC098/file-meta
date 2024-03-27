@@ -74,8 +74,14 @@ pub const FORMAT_LIST: [Format; 3] = [
     Format::Binary,
 ];
 
-pub trait FileActions {
+pub trait MetaContainer {
+    fn created(&self) -> &time::DateTime;
+    fn updated(&self) -> Option<&time::DateTime>;
+    fn tags(&self) -> &tags::TagsMap;
+    fn comment(&self) -> Option<&str>;
+
     fn update_ts(&mut self);
+
     fn take_comment(&mut self) -> Option<String>;
     fn take_tags(&mut self) -> tags::TagsMap;
     fn take_tags_comment(&mut self) -> (tags::TagsMap, Option<String>);
@@ -100,7 +106,23 @@ impl Default for FileData {
     }
 }
 
-impl FileActions for FileData {
+impl MetaContainer for FileData {
+    fn created(&self) -> &time::DateTime {
+        &self.created
+    }
+
+    fn updated(&self) -> Option<&time::DateTime> {
+        self.updated.as_ref()
+    }
+
+    fn tags(&self) -> &tags::TagsMap {
+        &self.tags
+    }
+
+    fn comment(&self) -> Option<&str> {
+        self.comment.as_ref().map(|v| v.as_str())
+    }
+
     fn update_ts(&mut self) {
         self.updated = Some(time::datetime_now());
     }
@@ -142,7 +164,23 @@ impl Default for Db {
     }
 }
 
-impl FileActions for Db {
+impl MetaContainer for Db {
+    fn created(&self) -> &time::DateTime {
+        &self.created
+    }
+
+    fn updated(&self) -> Option<&time::DateTime> {
+        self.updated.as_ref()
+    }
+
+    fn tags(&self) -> &tags::TagsMap {
+        &self.tags
+    }
+
+    fn comment(&self) -> Option<&str> {
+        self.comment.as_ref().map(|v| v.as_str())
+    }
+
     fn update_ts(&mut self) {
         self.updated = Some(time::datetime_now());
     }

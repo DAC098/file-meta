@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use anyhow::Context as _;
 use clap::Args;
 
-use crate::db::{self, FileActions as _};
+use crate::db::{self, MetaContainer as _};
 use crate::fs;
 
 #[derive(Debug, Args)]

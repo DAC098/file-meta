@@ -4,7 +4,7 @@ use clap::Args;
 
 use crate::logging;
 use crate::tags;
-use crate::db::{self, FileActions as _};
+use crate::db::{self, MetaContainer as _};
 
 #[derive(Debug, Args)]
 pub struct SetArgs {
