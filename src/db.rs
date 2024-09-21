@@ -77,6 +77,8 @@ pub const FORMAT_LIST: [Format; 3] = [
 pub trait MetaContainer {
     fn created(&self) -> &time::DateTime;
     fn updated(&self) -> Option<&time::DateTime>;
+    fn modified(&self) -> &time::DateTime;
+
     fn tags(&self) -> &tags::TagsMap;
     fn comment(&self) -> Option<&str>;
 
@@ -113,6 +115,10 @@ impl MetaContainer for FileData {
 
     fn updated(&self) -> Option<&time::DateTime> {
         self.updated.as_ref()
+    }
+
+    fn modified(&self) -> &time::DateTime {
+        self.updated.as_ref().unwrap_or(&self.created)
     }
 
     fn tags(&self) -> &tags::TagsMap {
@@ -171,6 +177,10 @@ impl MetaContainer for Db {
 
     fn updated(&self) -> Option<&time::DateTime> {
         self.updated.as_ref()
+    }
+
+    fn modified(&self) -> &time::DateTime {
+        self.updated.as_ref().unwrap_or(&self.created)
     }
 
     fn tags(&self) -> &tags::TagsMap {
