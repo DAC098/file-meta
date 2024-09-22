@@ -4,6 +4,7 @@ use std::io::{BufWriter, BufReader};
 use std::default::Default;
 use std::ffi::OsStr;
 use std::fs::OpenOptions;
+use std::fmt::Debug;
 
 use serde::{Serialize, Deserialize};
 use anyhow::Context as _;
@@ -74,7 +75,7 @@ pub const FORMAT_LIST: [Format; 3] = [
     Format::Binary,
 ];
 
-pub trait MetaContainer {
+pub trait MetaContainer: Debug {
     fn created(&self) -> &time::DateTime;
     fn updated(&self) -> Option<&time::DateTime>;
     fn modified(&self) -> &time::DateTime;

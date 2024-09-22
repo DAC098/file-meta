@@ -1,6 +1,6 @@
 use std::cmp::{PartialOrd, Ordering};
 use std::collections::BinaryHeap;
-use std::fmt::{Display, Formatter, Result as FmtResult};
+use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
 use std::path::{Path, PathBuf};
 
 use clap::{Args, ValueEnum};
@@ -10,7 +10,7 @@ use crate::tags;
 use crate::path;
 use crate::db::{self, Db, FileData, MetaContainer};
 
-#[derive(Eq, Ord)]
+#[derive(Debug, Eq, Ord)]
 enum FilterKey<'a> {
     Borrowed(&'a str),
     Owned(Box<str>),
@@ -41,8 +41,8 @@ impl<'a> PartialOrd for FilterKey<'a> {
 impl<'a> Display for FilterKey<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
-            FilterKey::Borrowed(v) => v.fmt(f),
-            FilterKey::Owned(v) => v.fmt(f),
+            FilterKey::Borrowed(v) => write!(f, "@ {v}"),
+            FilterKey::Owned(v) => write!(f, "@ {v}"),
         }
     }
 }
@@ -79,13 +79,31 @@ pub struct GetArgs {
     self_: bool,
 
     /// sort by created or updated date
-    #[arg(long, value_delimiter = ',')]
+    ///
+    /// sorting will be done in ascending order. if the order of a value cannot
+    /// be determined and there is no other constraint then the order will be
+    /// unspecified
+    #[arg(long, value_delimiter(','), default_value("name"))]
     sort_by: Vec<SortBy>,
+
+    /// filters out results that do not contain the desired tags
+    ///
+    /// this will be considered a AND operation with exclude tags, so a given
+    /// record must fulfill both include and exclude rules.
+    #[arg(long, value_delimiter(','))]
+    includes_tags: Vec<tags::TagKey>,
+
+    /// filters out results that do contain the desired tags
+    ///
+    /// this will be considered a AND operation with include tags, so a given
+    /// record must fulfill both include and exclude rules.
+    #[arg(long, value_delimiter(','))]
+    excludes_tags: Vec<tags::TagKey>,
 
     /// the file(s) to retrieve data for
     #[arg(
         trailing_var_arg(true),
-        required_unless_present_any(["self_", "all"])
+        default_value("./")
     )]
     files: Vec<PathBuf>,
 }
@@ -93,61 +111,63 @@ pub struct GetArgs {
 pub fn get_data(args: GetArgs) -> anyhow::Result<()> {
     let context = db::Context::cwd_load()?;
 
-    if args.sort_by.is_empty() {
-        let print_title = if args.all {
-            context.db.files.len() + 1
-        } else if args.self_ {
-            args.files.len() + 1
-        } else {
-            args.files.len()
-        } > 1;
+    let mut filtered_items: FilteredList = Vec::new();
 
-        if args.self_ || args.all {
-            print_data(&"SELF", &context.db, &args, print_title);
-        }
+    if (args.self_ || args.all) && check_filter(&context.db, &args) {
+        filtered_items.push((FilterKey::Borrowed("!SELF"), &context.db));
+    }
 
-        if args.all {
-            for (key, file) in &context.db.files {
-                print_data(&key, file, &args, print_title);
+    if args.all {
+        for (key, file) in &context.db.files {
+            if !check_filter(file, &args) {
+                continue;
             }
-        } else {
-            for path_result in context.rel_to_db_list(&args.files) {
-                let Some((_path, db_entry, existing)) = get_path_data(path_result, &context.db) else {
-                    continue;
-                };
 
-                print_data(&db_entry, existing, &args, print_title);
-            }
+            sorted_insert(FilterKey::Borrowed(key), file, &mut filtered_items, &args.sort_by);
         }
     } else {
-        let mut filtered_items: FilteredList = Vec::new();
+        for path_result in context.rel_to_db_list(&args.files) {
+            let Some((_path, db_entry, existing)) = get_path_data(path_result, &context.db) else {
+                continue;
+            };
 
-        if args.self_ || args.all {
-            filtered_items.push((FilterKey::Borrowed("SELF"), &context.db));
-        }
-
-        if args.all {
-            for (key, file) in &context.db.files {
-                sorted_insert(FilterKey::Borrowed(key), file, &mut filtered_items, &args.sort_by);
+            if !check_filter(existing, &args) {
+                continue;
             }
-        } else {
-            for path_result in context.rel_to_db_list(&args.files) {
-                let Some((_path, db_entry, existing)) = get_path_data(path_result, &context.db) else {
-                    continue;
-                };
 
-                sorted_insert(FilterKey::Owned(db_entry), existing, &mut filtered_items, &args.sort_by);
-            }
-        }
-
-        let print_title = filtered_items.len() > 1;
-
-        for (key, data) in filtered_items {
-            print_data(&key, data, &args, print_title);
+            sorted_insert(FilterKey::Owned(db_entry), existing, &mut filtered_items, &args.sort_by);
         }
     }
 
+    let total = filtered_items.len();
+    let print_title = total > 1;
+
+    for (key, data) in filtered_items {
+        print_data(&key, data, &args, print_title);
+    }
+
+    println!("Total: {total}");
+
     Ok(())
+}
+
+fn check_filter<M>(meta: &M, args: &GetArgs) -> bool
+where
+    M: MetaContainer
+{
+    for check in &args.includes_tags {
+        if !meta.tags().contains_key(check.inner()) {
+            return false;
+        }
+    }
+
+    for check in &args.excludes_tags {
+        if meta.tags().contains_key(check.inner()) {
+            return false;
+        }
+    }
+
+    true
 }
 
 fn sorted_insert<'a, M>(key: FilterKey<'a>, meta: &'a M, filtered_items: &mut FilteredList<'a>, sort_by: &[SortBy])
@@ -186,7 +206,7 @@ where
 
     match result {
         Ok(index) => filtered_items.insert(index, (key, meta)),
-        Err(index) => filtered_items.insert(index, (key, meta))
+        Err(index) => filtered_items.insert(index, (key, meta)),
     }
 }
 
@@ -201,19 +221,11 @@ fn get_path_data<'a>(
     let (path, db_entry) = rel_path.into();
 
     let Some(existing) = db.files.get(&db_entry) else {
-        println!("{db_entry} not found");
+        println!("\"{db_entry}\" not found");
         return None;
     };
 
     Some((path, db_entry, existing))
-}
-
-#[inline]
-fn print_entry<E>(entry: &E)
-where
-    E: Display + ?Sized
-{
-    println!("@ {entry}");
 }
 
 fn print_data<E, M>(entry: &E, container: &M, args: &GetArgs, print_title: bool)
@@ -226,7 +238,7 @@ where
 
     if !args.no_tags {
         if print_title {
-            print_entry(entry);
+            println!("{entry}");
             printed_key = true;
         }
 
@@ -237,7 +249,7 @@ where
     if !args.no_comment {
         if let Some(comment) = container.comment() {
             if print_title && !printed_key {
-                print_entry(entry);
+                println!("{entry}");
             }
 
             println!("comment: {comment}");

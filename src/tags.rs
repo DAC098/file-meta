@@ -1,10 +1,49 @@
 use std::collections::BTreeMap;
-use std::fmt::{Display, Formatter};
+use std::fmt::{Display, Formatter, Result as FmtResult};
+use std::str::FromStr;
 
 use serde::{Serialize, Deserialize};
 use url::Url;
 
 pub type TagsMap = BTreeMap<String, Option<TagValue>>;
+
+#[derive(Debug, thiserror::Error)]
+#[error("the provided tag key contains invalid characters")]
+pub struct InvalidTagChars;
+
+pub const INVALID_CHARS: [char; 4] = ['\\', ':', ',', '!'];
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TagKey(String);
+
+impl TagKey {
+    pub fn inner(&self) -> &str {
+        &self.0
+    }
+}
+
+impl Display for TagKey {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        self.0.fmt(f)
+    }
+}
+
+impl FromStr for TagKey {
+    type Err = InvalidTagChars;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        for ch in value.chars() {
+            if ch.is_control() ||
+                ch.is_whitespace() ||
+                INVALID_CHARS.contains(&ch)
+            {
+                return Err(InvalidTagChars);
+            }
+        }
+
+        Ok(TagKey(value.to_owned()))
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum TagValue {
