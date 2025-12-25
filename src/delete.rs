@@ -3,9 +3,9 @@ use std::path::PathBuf;
 
 use clap::Args;
 
-use crate::logging;
-use crate::fs;
 use crate::db;
+use crate::fs;
+use crate::logging;
 
 #[derive(Debug, Args)]
 pub struct DeleteArgs {
@@ -14,10 +14,7 @@ pub struct DeleteArgs {
     not_exists: bool,
 
     /// the file(s) to remove from the database
-    #[arg(
-        trailing_var_arg = true,
-        required_unless_present("not_exists")
-    )]
+    #[arg(trailing_var_arg = true, required_unless_present("not_exists"))]
     files: Vec<PathBuf>,
 }
 

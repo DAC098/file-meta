@@ -2,9 +2,9 @@ use std::path::PathBuf;
 
 use clap::Args;
 
+use crate::db::{self, MetaContainer as _};
 use crate::logging;
 use crate::tags;
-use crate::db::{self, MetaContainer as _};
 
 #[derive(Debug, Args)]
 pub struct SetArgs {
@@ -86,19 +86,16 @@ pub struct SetArgs {
     self_: bool,
 
     /// the file(s) to update data for
-    #[arg(
-        trailing_var_arg(true),
-        required_unless_present("self_")
-    )]
+    #[arg(trailing_var_arg(true), required_unless_present("self_"))]
     files: Vec<PathBuf>,
 }
 
 #[inline]
 fn has_tags(args: &SetArgs) -> bool {
-    !args.tag.is_empty() ||
-        !args.tag_url.is_empty() ||
-        !args.tag_num.is_empty() ||
-        !args.tag_bool.is_empty()
+    !args.tag.is_empty()
+        || !args.tag_url.is_empty()
+        || !args.tag_num.is_empty()
+        || !args.tag_bool.is_empty()
 }
 
 fn update_tags(args: &SetArgs, tags: &mut tags::TagsMap) {
@@ -142,7 +139,10 @@ pub fn set_data(args: SetArgs) -> anyhow::Result<()> {
 
         log::info!("retrieving entry: {}", db_entry);
 
-        let entry = context.db.files.entry(db_entry)
+        let entry = context
+            .db
+            .files
+            .entry(db_entry)
             .and_modify(db::FileData::update_ts)
             .or_default();
 

@@ -2,8 +2,8 @@ use std::path::PathBuf;
 
 use clap::Args;
 
-use crate::logging;
 use crate::db;
+use crate::logging;
 
 #[derive(Debug, Args)]
 pub struct PushArgs {

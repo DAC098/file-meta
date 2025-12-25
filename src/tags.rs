@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::str::FromStr;
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use url::Url;
 
 pub type TagsMap = BTreeMap<String, Option<TagValue>>;
@@ -33,10 +33,7 @@ impl FromStr for TagKey {
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         for ch in value.chars() {
-            if ch.is_control() ||
-                ch.is_whitespace() ||
-                INVALID_CHARS.contains(&ch)
-            {
+            if ch.is_control() || ch.is_whitespace() || INVALID_CHARS.contains(&ch) {
                 return Err(InvalidTagChars);
             }
         }
@@ -135,7 +132,7 @@ pub fn parse_url_tag(arg: &str) -> Result<Tag, String> {
 
     match TagValue::parse_url(value) {
         Ok(url) => Ok((name.into(), Some(url))),
-        Err(err) => Err(format!("invalid url provided: {}", err))
+        Err(err) => Err(format!("invalid url provided: {}", err)),
     }
 }
 
@@ -144,7 +141,7 @@ pub fn parse_num_tag(arg: &str) -> Result<Tag, String> {
 
     match TagValue::parse_num(value) {
         Ok(url) => Ok((name.into(), Some(url))),
-        Err(err) => Err(format!("invalid num provided: {}", err))
+        Err(err) => Err(format!("invalid num provided: {}", err)),
     }
 }
 
@@ -153,6 +150,6 @@ pub fn parse_bool_tag(arg: &str) -> Result<Tag, String> {
 
     match TagValue::parse_bool(value) {
         Ok(b) => Ok((name.into(), Some(b))),
-        Err(err) => Err(format!("invalid bool provided: {}", err))
+        Err(err) => Err(format!("invalid bool provided: {}", err)),
     }
 }

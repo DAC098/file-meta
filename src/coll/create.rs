@@ -7,7 +7,7 @@ use crate::db;
 #[derive(Debug, Args)]
 pub struct CreateArgs {
     /// the name of the new collection to create
-    name: String
+    name: String,
 }
 
 pub fn create_coll(args: CreateArgs) -> anyhow::Result<()> {

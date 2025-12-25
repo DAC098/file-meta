@@ -1,5 +1,5 @@
-use clap::Args;
 use anyhow::Context;
+use clap::Args;
 
 use crate::db;
 
@@ -11,17 +11,13 @@ pub fn drop_db(_args: DropArgs) -> anyhow::Result<()> {
 
     log::info!("dropping db file: {}", context.path().display());
 
-    std::fs::remove_file(context.path())
-        .context("failed to remove db file")?;
+    std::fs::remove_file(context.path()).context("failed to remove db file")?;
 
-    let dir = context.path()
-        .parent()
-        .unwrap();
+    let dir = context.path().parent().unwrap();
 
     log::info!("dropping fsm directory: {}", dir.display());
 
-    std::fs::remove_dir(dir)
-        .context("failed to remove .fsm directory")?;
+    std::fs::remove_dir(dir).context("failed to remove .fsm directory")?;
 
     Ok(())
 }

@@ -33,8 +33,8 @@ pub struct MoveArgs {
     to_self: bool,
 
     /// the destination file item
-    #[arg(short, long,required_unless_present("to_self"))]
-    to: Option<PathBuf>
+    #[arg(short, long, required_unless_present("to_self"))]
+    to: Option<PathBuf>,
 }
 
 fn get_src_entry(context: &mut db::Context, path: PathBuf) -> anyhow::Result<db::FileData> {
@@ -42,20 +42,33 @@ fn get_src_entry(context: &mut db::Context, path: PathBuf) -> anyhow::Result<db:
 
     log::info!("moving from entry: {}", src_entry);
 
-    context.db.files.remove(&src_entry)
+    context
+        .db
+        .files
+        .remove(&src_entry)
         .with_context(|| format!("source not found in db: {}", src_path.display()))
 }
 
-fn get_dst_entry<'a>(context: &'a mut db::Context, path: PathBuf, check_exists: bool) -> anyhow::Result<&'a mut db::FileData> {
+fn get_dst_entry<'a>(
+    context: &'a mut db::Context,
+    path: PathBuf,
+    check_exists: bool,
+) -> anyhow::Result<&'a mut db::FileData> {
     let (dst_path, dst_entry) = context.rel_to_db(path)?.into();
 
     if check_exists && !fs::check_exists(&dst_path)? {
-        return Err(anyhow::anyhow!("the destination path does not exist: {}", dst_path.display()));
+        return Err(anyhow::anyhow!(
+            "the destination path does not exist: {}",
+            dst_path.display()
+        ));
     }
 
     log::info!("retrieving entry: {}", dst_entry);
 
-    Ok(context.db.files.entry(dst_entry)
+    Ok(context
+        .db
+        .files
+        .entry(dst_entry)
         .and_modify(db::FileData::update_ts)
         .or_default())
 }

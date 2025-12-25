@@ -1,5 +1,5 @@
-use clap::Args;
 use anyhow::Context;
+use clap::Args;
 
 use crate::db;
 

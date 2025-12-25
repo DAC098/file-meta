@@ -3,9 +3,9 @@ use std::path::PathBuf;
 
 use clap::Args;
 
-use crate::logging;
 use crate::db;
 use crate::fs;
+use crate::logging;
 
 #[derive(Debug, Args)]
 pub struct PopArgs {
@@ -14,13 +14,10 @@ pub struct PopArgs {
 
     /// drop files that do not exist
     #[arg(long)]
-    no_exists:bool,
+    no_exists: bool,
 
     /// the file(s) to pop
-    #[arg(
-        trailing_var_arg(true),
-        required_unless_present("no_exists")
-    )]
+    #[arg(trailing_var_arg(true), required_unless_present("no_exists"))]
     files: Vec<PathBuf>,
 }
 

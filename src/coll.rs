@@ -1,10 +1,10 @@
 use clap::{Args, Subcommand};
 
-mod view;
 mod create;
-mod push;
-mod pop;
 mod delete;
+mod pop;
+mod push;
+mod view;
 
 #[derive(Debug, Args)]
 pub struct CollectionArgs {

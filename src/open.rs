@@ -1,11 +1,11 @@
 use std::path::PathBuf;
 
-use clap::Args;
 use anyhow::Context;
+use clap::Args;
 
+use crate::db;
 use crate::logging;
 use crate::tags;
-use crate::db;
 
 #[derive(Debug, Args)]
 pub struct OpenArgs {
@@ -90,7 +90,11 @@ pub fn open(args: OpenArgs) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn retrieve_tag_value<'a>(file: &str, tag: &str, map: &'a tags::TagsMap) -> Option<&'a tags::TagValue> {
+fn retrieve_tag_value<'a>(
+    file: &str,
+    tag: &str,
+    map: &'a tags::TagsMap,
+) -> Option<&'a tags::TagValue> {
     let Some(maybe) = map.get(tag) else {
         log::info!("{} {} does not exist", file, tag);
         return None;

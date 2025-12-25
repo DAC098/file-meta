@@ -1,19 +1,19 @@
 use clap::{Parser, Subcommand};
 
+mod fs;
 mod logging;
 mod path;
 mod time;
-mod fs;
 
-mod tags;
 mod db;
+mod tags;
 
-mod get;
-mod set;
-mod r#move;
-mod delete;
-mod open;
 mod coll;
+mod delete;
+mod get;
+mod r#move;
+mod open;
+mod set;
 
 /// a command line utility for managing additional data for files on the file
 /// system

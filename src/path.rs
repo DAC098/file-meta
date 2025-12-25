@@ -2,14 +2,13 @@ use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
 use anyhow::Context;
-use thiserror::Error;
 use path_absolutize::Absolutize as _;
+use thiserror::Error;
 
 static CWD: OnceLock<Box<Path>> = OnceLock::new();
 
 pub fn set_cwd() -> anyhow::Result<()> {
-    let result = std::env::current_dir()
-        .context("failed to retrieve current working directory")?;
+    let result = std::env::current_dir().context("failed to retrieve current working directory")?;
 
     let _ = CWD.set(result.into());
 
@@ -59,7 +58,9 @@ impl RelativePath {
         };
 
         let db_entry = if std::path::MAIN_SEPARATOR != '/' {
-            utf_from_root.replace(std::path::MAIN_SEPARATOR_STR, "/").into()
+            utf_from_root
+                .replace(std::path::MAIN_SEPARATOR_STR, "/")
+                .into()
         } else {
             utf_from_root.into()
         };
@@ -98,7 +99,7 @@ impl<'a> RelativePathList<'a> {
     pub fn new(root: Box<Path>, path_list: &'a Vec<PathBuf>) -> Self {
         RelativePathList {
             iter: path_list.iter(),
-            root
+            root,
         }
     }
 }

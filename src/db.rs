@@ -1,28 +1,28 @@
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::{PathBuf, Path};
-use std::io::{BufWriter, BufReader};
 use std::default::Default;
 use std::ffi::OsStr;
-use std::fs::OpenOptions;
 use std::fmt::Debug;
+use std::fs::OpenOptions;
+use std::io::{BufReader, BufWriter};
+use std::path::{Path, PathBuf};
 
-use serde::{Serialize, Deserialize};
 use anyhow::Context as _;
 use clap::{Args, Subcommand, ValueEnum};
+use serde::{Deserialize, Serialize};
 
 use crate::fs::get_metadata;
-use crate::tags;
 use crate::path;
+use crate::tags;
 use crate::time;
 
-pub mod init;
-pub mod dump;
 pub mod drop;
+pub mod dump;
+pub mod init;
 
 #[derive(Debug, Args)]
 pub struct DbArgs {
     #[command(subcommand)]
-    cmd: ManageCmd
+    cmd: ManageCmd,
 }
 
 #[derive(Debug, Subcommand)]
@@ -69,11 +69,7 @@ impl Format {
     }
 }
 
-pub const FORMAT_LIST: [Format; 3] = [
-    Format::JsonPretty,
-    Format::Json,
-    Format::Binary,
-];
+pub const FORMAT_LIST: [Format; 3] = [Format::JsonPretty, Format::Json, Format::Binary];
 
 pub trait MetaContainer: Debug {
     fn created(&self) -> &time::DateTime;
@@ -143,7 +139,10 @@ impl MetaContainer for FileData {
     }
 
     fn take_tags_comment(&mut self) -> (tags::TagsMap, Option<String>) {
-        (std::mem::take(&mut self.tags), std::mem::take(&mut self.comment))
+        (
+            std::mem::take(&mut self.tags),
+            std::mem::take(&mut self.comment),
+        )
     }
 }
 
@@ -205,7 +204,10 @@ impl MetaContainer for Db {
     }
 
     fn take_tags_comment(&mut self) -> (tags::TagsMap, Option<String>) {
-        (std::mem::take(&mut self.tags), std::mem::take(&mut self.comment))
+        (
+            std::mem::take(&mut self.tags),
+            std::mem::take(&mut self.comment),
+        )
     }
 }
 
@@ -220,7 +222,7 @@ pub struct Context {
 impl Context {
     pub fn create<P>(path: P, format: Format) -> anyhow::Result<Self>
     where
-        P: Into<DbPath>
+        P: Into<DbPath>,
     {
         let path = path.into();
         let root = Self::get_root(&path);
@@ -229,7 +231,7 @@ impl Context {
             format,
             db: Db::default(),
             path,
-            root
+            root,
         };
 
         rtn.write_file(true)?;
@@ -238,24 +240,21 @@ impl Context {
     }
 
     fn get_root(path: &Path) -> RootPath {
-        path.parent()
-            .unwrap()
-            .parent()
-            .unwrap()
-            .into()
+        path.parent().unwrap().parent().unwrap().into()
     }
 
     pub fn find_file<P>(ref_path: P) -> anyhow::Result<Option<(DbPath, Format)>>
     where
-        P: AsRef<Path>
+        P: AsRef<Path>,
     {
         let ref_path = ref_path.as_ref();
 
         for ancestor in ref_path.ancestors() {
             let fsm_dir = ancestor.join(".fsm");
 
-            let Some(metadata) = get_metadata(&fsm_dir)
-                .context("io error when checkign for .fsm directory")? else {
+            let Some(metadata) =
+                get_metadata(&fsm_dir).context("io error when checkign for .fsm directory")?
+            else {
                 continue;
             };
 
@@ -266,8 +265,9 @@ impl Context {
             for format in &FORMAT_LIST {
                 let db_file = fsm_dir.join(format.file_name());
 
-                let Some(metadata) = get_metadata(&db_file)
-                    .context("io error when checking for db file")? else {
+                let Some(metadata) =
+                    get_metadata(&db_file).context("io error when checking for db file")?
+                else {
                     continue;
                 };
 
@@ -294,11 +294,10 @@ impl Context {
         let start = std::time::Instant::now();
 
         let db = match &format {
-            Format::JsonPretty |
-            Format::Json => serde_json::from_reader(reader)
+            Format::JsonPretty | Format::Json => serde_json::from_reader(reader)
                 .with_context(|| format!("failed deserializing db json: {}", path.display()))?,
             Format::Binary => bincode::deserialize_from(reader)
-                .with_context(|| format!("failed deserializing db binary: {}", path.display()))?
+                .with_context(|| format!("failed deserializing db binary: {}", path.display()))?,
         };
 
         log::info!("db parse time: {:?}", start.elapsed());
@@ -343,8 +342,9 @@ impl Context {
                 .with_context(|| format!("failed serializing db json: {}", self.path.display()))?,
             Format::Json => serde_json::to_writer(writer, &self.db)
                 .with_context(|| format!("failed serializing db json: {}", self.path.display()))?,
-            Format::Binary => bincode::serialize_into(writer, &self.db)
-                .with_context(|| format!("failed serializing db binary: {}", self.path.display()))?
+            Format::Binary => bincode::serialize_into(writer, &self.db).with_context(|| {
+                format!("failed serializing db binary: {}", self.path.display())
+            })?,
         }
 
         log::info!("db save time: {:?}", start.elapsed());

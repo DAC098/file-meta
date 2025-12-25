@@ -1,14 +1,14 @@
-use std::cmp::{PartialOrd, Ordering};
+use std::cmp::{Ordering, PartialOrd};
 use std::collections::BinaryHeap;
 use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
 use std::path::{Path, PathBuf};
 
 use clap::{Args, ValueEnum};
 
-use crate::logging;
-use crate::tags;
-use crate::path;
 use crate::db::{self, Db, FileData, MetaContainer};
+use crate::logging;
+use crate::path;
+use crate::tags;
 
 #[derive(Debug, Eq, Ord)]
 enum FilterKey<'a> {
@@ -31,9 +31,9 @@ impl<'a> PartialOrd for FilterKey<'a> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         match (self, other) {
             (FilterKey::Borrowed(a), FilterKey::Borrowed(b)) => Some(a.cmp(b)),
-            (FilterKey::Borrowed(a), FilterKey::Owned(b)) => Some((**a).cmp(& *b)),
+            (FilterKey::Borrowed(a), FilterKey::Owned(b)) => Some((**a).cmp(&*b)),
             (FilterKey::Owned(a), FilterKey::Borrowed(b)) => Some((**a).cmp(*b)),
-            (FilterKey::Owned(a), FilterKey::Owned(b)) => Some(a.cmp(b))
+            (FilterKey::Owned(a), FilterKey::Owned(b)) => Some(a.cmp(b)),
         }
     }
 }
@@ -47,10 +47,7 @@ impl<'a> Display for FilterKey<'a> {
     }
 }
 
-type FilteredList<'a> = Vec<(
-    FilterKey<'a>,
-    &'a (dyn MetaContainer)
-)>;
+type FilteredList<'a> = Vec<(FilterKey<'a>, &'a (dyn MetaContainer))>;
 
 #[derive(Debug, Clone, ValueEnum)]
 enum SortBy {
@@ -101,10 +98,7 @@ pub struct GetArgs {
     excludes_tags: Vec<tags::TagKey>,
 
     /// the file(s) to retrieve data for
-    #[arg(
-        trailing_var_arg(true),
-        default_value("./")
-    )]
+    #[arg(trailing_var_arg(true), default_value("./"))]
     files: Vec<PathBuf>,
 }
 
@@ -123,7 +117,12 @@ pub fn get_data(args: GetArgs) -> anyhow::Result<()> {
                 continue;
             }
 
-            sorted_insert(FilterKey::Borrowed(key), file, &mut filtered_items, &args.sort_by);
+            sorted_insert(
+                FilterKey::Borrowed(key),
+                file,
+                &mut filtered_items,
+                &args.sort_by,
+            );
         }
     } else {
         for path_result in context.rel_to_db_list(&args.files) {
@@ -135,7 +134,12 @@ pub fn get_data(args: GetArgs) -> anyhow::Result<()> {
                 continue;
             }
 
-            sorted_insert(FilterKey::Owned(db_entry), existing, &mut filtered_items, &args.sort_by);
+            sorted_insert(
+                FilterKey::Owned(db_entry),
+                existing,
+                &mut filtered_items,
+                &args.sort_by,
+            );
         }
     }
 
@@ -153,7 +157,7 @@ pub fn get_data(args: GetArgs) -> anyhow::Result<()> {
 
 fn check_filter<M>(meta: &M, args: &GetArgs) -> bool
 where
-    M: MetaContainer
+    M: MetaContainer,
 {
     for check in &args.includes_tags {
         if !meta.tags().contains_key(check.inner()) {
@@ -170,34 +174,40 @@ where
     true
 }
 
-fn sorted_insert<'a, M>(key: FilterKey<'a>, meta: &'a M, filtered_items: &mut FilteredList<'a>, sort_by: &[SortBy])
-where
+fn sorted_insert<'a, M>(
+    key: FilterKey<'a>,
+    meta: &'a M,
+    filtered_items: &mut FilteredList<'a>,
+    sort_by: &[SortBy],
+) where
     M: MetaContainer,
 {
     let result = filtered_items.binary_search_by(|other| {
         for by in sort_by {
             match by {
                 SortBy::Name => match other.0.cmp(&key) {
-                    Ordering::Equal => {},
+                    Ordering::Equal => {}
                     order => return order,
-                }
+                },
                 SortBy::Date => match other.1.modified().cmp(meta.modified()) {
-                    Ordering::Equal => {},
+                    Ordering::Equal => {}
                     order => return order,
-                }
+                },
                 SortBy::Created => match other.1.created().cmp(meta.created()) {
-                    Ordering::Equal => {},
+                    Ordering::Equal => {}
                     order => return order,
-                }
+                },
                 SortBy::Updated => match (other.1.updated(), meta.updated()) {
-                    (Some(other_updated), Some(meta_updated)) => match other_updated.cmp(meta_updated) {
-                        Ordering::Equal => {},
-                        order => return order,
+                    (Some(other_updated), Some(meta_updated)) => {
+                        match other_updated.cmp(meta_updated) {
+                            Ordering::Equal => {}
+                            order => return order,
+                        }
                     }
                     (Some(_), None) => return Ordering::Less,
                     (None, Some(_)) => return Ordering::Greater,
                     (None, None) => {}
-                }
+                },
             }
         }
 
@@ -265,8 +275,7 @@ where
 
             println!("{local_updated}");
         } else {
-            let local_created = container.created()
-                .with_timezone(&local_offset);
+            let local_created = container.created().with_timezone(&local_offset);
 
             println!("{local_created}");
         }
@@ -297,10 +306,7 @@ fn print_tags(tags: &tags::TagsMap) {
     }
 
     for key in with_value.into_sorted_vec() {
-        let value = tags.get(&key)
-            .unwrap()
-            .as_ref()
-            .unwrap();
+        let value = tags.get(&key).unwrap().as_ref().unwrap();
 
         println!("{key:>max_len$}: {value}");
     }

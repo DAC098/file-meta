@@ -1,6 +1,6 @@
 use std::fs::Metadata;
-use std::path::Path;
 use std::io::ErrorKind;
+use std::path::Path;
 
 pub fn get_metadata(path: &Path) -> Result<Option<Metadata>, std::io::Error> {
     match path.metadata() {
@@ -8,7 +8,7 @@ pub fn get_metadata(path: &Path) -> Result<Option<Metadata>, std::io::Error> {
         Err(err) => match err.kind() {
             ErrorKind::NotFound => Ok(None),
             _ => Err(err),
-        }
+        },
     }
 }
 
