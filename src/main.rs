@@ -62,22 +62,17 @@ enum Cmd {
     Db(db::DbArgs),
 }
 
-const RUST_LOG_ENV: &str = "RUST_LOG";
-
 fn main() -> anyhow::Result<()> {
     path::set_cwd()?;
+    env_logger::init();
 
     let args = AppArgs::parse();
 
-    if std::env::var_os(RUST_LOG_ENV).is_none() {
-        if args.verbose {
-            std::env::set_var(RUST_LOG_ENV, "info");
-        } else if args.debug {
-            std::env::set_var(RUST_LOG_ENV, "debug");
-        }
+    if args.verbose {
+        log::set_max_level(log::LevelFilter::Info);
+    } else if args.debug {
+        log::set_max_level(log::LevelFilter::Debug);
     }
-
-    env_logger::init();
 
     match args.cmd {
         Cmd::Get(get_args) => get::get_data(get_args),
